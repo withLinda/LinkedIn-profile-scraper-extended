@@ -15,6 +15,12 @@ A basic LinkedIn profile scraper that extracts data from LinkedIn search results
 - 🎨 **Real-time UI**: Beautiful overlay showing progress and results
 - 🔒 **Safe & Secure**: No external dependencies, runs entirely in your browser
 
+## How-to Video
+
+Watch this quick tutorial on how to copy, paste, and run the scraper in your Chrome browser console:
+
+https://github.com/user-attachments/assets/scraper-console-tutorial.mp4
+
 ## Screenshots
 
 ### Export Interface
@@ -42,7 +48,7 @@ This is the easiest and most reliable method.
    - Click on the "Console" tab
 
 3. **Run the Scraper**
-   - Copy the entire contents of `build/console.js`
+   - Copy the entire contents of [`build/console.js`](https://github.com/withLinda/LinkedIn-profile-scraper-lite/blob/main/build/console.js)
    - Paste into the console
    - Press `Enter`
 
@@ -63,7 +69,7 @@ Best for frequent use with added convenience features.
 2. **Add the Script**
    - Click Tampermonkey icon → "Create a new script"
    - Delete the default content
-   - Copy & paste contents from `build/userscript.js`
+   - Copy & paste contents from [`build/userscript.js`](https://github.com/withLinda/LinkedIn-profile-scraper-lite/blob/main/build/userscript.js)
    - Press `Ctrl+S` to save
 
 3. **Use on LinkedIn**
