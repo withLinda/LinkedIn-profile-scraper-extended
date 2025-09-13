@@ -19,7 +19,7 @@ A basic LinkedIn profile scraper that extracts data from LinkedIn search results
 
 Watch this quick tutorial on how to copy, paste, and run the scraper in your Chrome browser console:
 
-https://github.com/user-attachments/assets/f4ad8f6b-cadc-4ca5-a896-47b79ce9b3ef
+https://github.com/user-attachments/assets/be01c9a0-88c6-4ed5-9d62-b3669ef34ea6
 
 ## Screenshots
 
