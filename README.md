@@ -19,7 +19,7 @@ A basic LinkedIn profile scraper that extracts data from LinkedIn search results
 
 Watch this quick tutorial on how to copy, paste, and run the scraper in your Chrome browser console:
 
-https://github.com/user-attachments/assets/scraper-console-tutorial.mp4
+[Watch Tutorial Video](image-for-readme/scraper-console-tutorial.mp4)
 
 ## Screenshots
 
@@ -161,8 +161,7 @@ For each profile, the scraper collects:
 - **API Endpoint**: LinkedIn Voyager GraphQL API
 - **Request Interval**: 400-1100ms (randomized)
 - **Batch Size**: 10 profiles per request
-- **Auto-Retry**: 3 attempts on rate limit
-
+- **Auto-Retry**: 3 attempts on rate limithttps://github.com/withLinda/LinkedIn-profile-scraper-lite
 ## Privacy & Ethics
 
 - Only scrapes publicly visible information
