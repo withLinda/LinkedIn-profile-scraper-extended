@@ -317,7 +317,7 @@
             const finalUrl = 'https://www.linkedin.com/voyager/api/graphql?' + variables + '&' + queryId;
             
             console.log('Final URL:', finalUrl);
-            console.log('=============================')
+            console.log('=============================');
             
             return finalUrl;
         }
