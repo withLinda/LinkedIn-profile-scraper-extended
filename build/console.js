@@ -235,6 +235,14 @@
         extractKeyword() {
             const urlParams = new URLSearchParams(window.location.search);
             const keywords = urlParams.get('keywords');
+            
+            // Debug logging
+            console.log('=== URL PARAMETERS ===');
+            urlParams.forEach((value, key) => {
+                console.log(`${key}: ${value}`);
+            });
+            console.log('====================');
+            
             if (keywords) return keywords;
             
             const searchBox = document.querySelector('input[placeholder*="Search"]');
@@ -244,9 +252,74 @@
         }
         
         buildUrl(start) {
-            const variables = 'variables=(start:' + start + ',origin:FACETED_SEARCH,query:(keywords:' + encodeURIComponent(this.keyword) + ',flagshipSearchIntent:SEARCH_SRP,queryParameters:List((key:resultType,value:List(PEOPLE))),includeFiltersInResponse:false))';
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            console.log('=== Building LinkedIn API URL ===');
+            console.log('Current URL:', window.location.href);
+            
+            // Parameters to EXCLUDE from queryParameters
+            // These are either handled elsewhere or shouldn't be sent
+            const excludeParams = [
+                'keywords',     // Goes in query.keywords, not queryParameters
+                'origin',       // Already set at top level
+                'sid',          // Session tracking, not needed
+                '_sid',         // Session tracking variant
+                'trk',          // Tracking parameter
+                '_trk',         // Tracking variant
+                'lipi',         // LinkedIn internal tracking
+                'lici'          // LinkedIn internal tracking
+            ];
+            
+            // Build queryParameters list - start with empty, will add dynamically
+            let queryParamsList = [];
+            
+            // Add parameters from URL, excluding the ones above
+            urlParams.forEach((value, key) => {
+                if (!excludeParams.includes(key) && value) {
+                    let clean = value;
+                    
+                    // CORRECT CLEANING: Handle ["value"] format properly
+                    if (clean.startsWith('[') && clean.endsWith(']')) {
+                        // Remove outer brackets
+                        clean = clean.slice(1, -1);
+                    }
+                    
+                    // Remove quotes if present
+                    if (clean.startsWith('"') && clean.endsWith('"')) {
+                        clean = clean.slice(1, -1);
+                    }
+                    
+                    // Remove any remaining quotes
+                    clean = clean.replace(/"/g, '');
+                    
+                    queryParamsList.push('(key:' + key + ',value:List(' + clean + '))');
+                    console.log('Added parameter:', key, '=', clean);
+                }
+            });
+            
+            // Always add resultType at the end
+            queryParamsList.push('(key:resultType,value:List(PEOPLE))');
+            
+            // Join all parameters
+            const queryParameters = 'List(' + queryParamsList.join(',') + ')';
+            
+            // Build the complete variables string
+            const variables = 'variables=(start:' + start + 
+                             ',origin:FACETED_SEARCH' +
+                             ',query:(keywords:' + encodeURIComponent(this.keyword) + 
+                             ',flagshipSearchIntent:SEARCH_SRP' +
+                             ',queryParameters:' + queryParameters + 
+                             ',includeFiltersInResponse:false))';
+            
+            // Use the CORRECT queryId (the original one)
             const queryId = 'queryId=voyagerSearchDashClusters.15c671c3162c043443995439a3d3b6dd';
-            return 'https://www.linkedin.com/voyager/api/graphql?' + variables + '&' + queryId;
+            
+            const finalUrl = 'https://www.linkedin.com/voyager/api/graphql?' + variables + '&' + queryId;
+            
+            console.log('Final URL:', finalUrl);
+            console.log('=============================')
+            
+            return finalUrl;
         }
         
         async delay(min = 400, max = 1100) {
