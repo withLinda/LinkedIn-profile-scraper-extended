@@ -5,7 +5,10 @@
   "main": "src/core.js",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "echo \"No tests configured\""
+    "test": "echo \"No tests configured\"",
+    "release:patch": "npm version patch && npm run build",
+    "release:minor": "npm version minor && npm run build",
+    "release:major": "npm version major && npm run build"
   },
   "keywords": [
     "linkedin",

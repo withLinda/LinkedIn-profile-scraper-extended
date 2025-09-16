@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Install LinkedIn Profile Scraper - One-click Tampermonkey userscript for scraping LinkedIn search results">
+    <meta property="og:title" content="LinkedIn Profile Scraper - Installation">
+    <meta property="og:description" content="Easily scrape LinkedIn profile data from search results with this Tampermonkey userscript">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://withlinda.github.io/LinkedIn-profile-scraper-lite/install.html">
+    <title>LinkedIn Profile Scraper - Installation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0077b5 0%, #005885 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.2em;
+            opacity: 0.95;
+        }
+
+        .content {
+            padding: 40px 30px;
+        }
+
+        .install-section {
+            margin-bottom: 40px;
+        }
+
+        .install-section h2 {
+            color: #0077b5;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+            font-size: 16px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(72, 187, 120, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(72, 187, 120, 0.5);
+        }
+
+        .btn-secondary {
+            background: #f7fafc;
+            color: #2d3748;
+            border: 2px solid #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        .extension-links {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+
+        .extension-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            text-decoration: none;
+            color: #2d3748;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        .extension-link:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+            transform: translateY(-1px);
+        }
+
+        .notice {
+            background: #fef5e7;
+            border-left: 4px solid #f39c12;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+
+        .notice strong {
+            color: #e67e22;
+        }
+
+        .accordion {
+            margin-top: 30px;
+        }
+
+        .accordion-item {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            background: #f7fafc;
+            padding: 15px 20px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #2d3748;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s ease;
+        }
+
+        .accordion-header:hover {
+            background: #edf2f7;
+        }
+
+        .accordion-header::after {
+            content: '▼';
+            font-size: 12px;
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-item.active .accordion-header::after {
+            transform: rotate(180deg);
+        }
+
+        .accordion-content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+        }
+
+        .accordion-item.active .accordion-content {
+            padding: 20px;
+            max-height: 500px;
+        }
+
+        .accordion-content ol {
+            margin-left: 20px;
+        }
+
+        .accordion-content li {
+            margin-bottom: 10px;
+        }
+
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #718096;
+            font-size: 14px;
+        }
+
+        footer a {
+            color: #0077b5;
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            header h1 {
+                font-size: 2em;
+            }
+            
+            .extension-links {
+                flex-direction: column;
+            }
+            
+            .extension-link {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔍 LinkedIn Profile Scraper</h1>
+            <p>Export LinkedIn search results to CSV or HTML with one click</p>
+        </header>
+        
+        <div class="content">
+            <div class="install-section">
+                <h2>⚡ Quick Install</h2>
+                
+                <div class="button-group">
+                    <a href="https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js" 
+                       class="btn btn-primary">
+                        📥 Install Tampermonkey Script
+                    </a>
+                    
+                    <a href="./linkedin-scraper.user.js" 
+                       class="btn btn-secondary">
+                        🔗 Install via GitHub Pages Mirror
+                    </a>
+                </div>
+                
+                <div class="notice">
+                    <strong>⚠️ Requires Tampermonkey Extension:</strong> 
+                    If clicking the button doesn't open an install dialog, you need to install Tampermonkey first, then click again.
+                </div>
+                
+                <div class="extension-links">
+                    <a href="https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" 
+                       class="extension-link" target="_blank">
+                        🌐 Chrome Web Store
+                    </a>
+                    <a href="https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/" 
+                       class="extension-link" target="_blank">
+                        🦊 Firefox Add-ons
+                    </a>
+                    <a href="https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd" 
+                       class="extension-link" target="_blank">
+                        🔷 Edge Add-ons
+                    </a>
+                </div>
+            </div>
+            
+            <div class="accordion">
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>📋 Alternative Installation Methods</span>
+                    </div>
+                    <div class="accordion-content">
+                        <h3>Method 1: Import from URL</h3>
+                        <ol>
+                            <li>Open Tampermonkey Dashboard</li>
+                            <li>Go to "Utilities" tab</li>
+                            <li>Under "Import from URL", paste:
+                                <code>https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js</code>
+                            </li>
+                            <li>Click "Import" and then "Install"</li>
+                        </ol>
+                        
+                        <h3>Method 2: Manual Installation</h3>
+                        <ol>
+                            <li>Open Tampermonkey Dashboard</li>
+                            <li>Click the "+" tab to create a new script</li>
+                            <li>Copy the entire script from <a href="https://github.com/withLinda/LinkedIn-profile-scraper-lite/blob/main/build/linkedin-scraper.user.js" target="_blank">here</a></li>
+                            <li>Replace the default content with the copied script</li>
+                            <li>Press Ctrl+S (or Cmd+S on Mac) to save</li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <div class="accordion-item">
+                    <div class="accordion-header" onclick="toggleAccordion(this)">
+                        <span>❓ Troubleshooting</span>
+                    </div>
+                    <div class="accordion-content">
+                        <ul>
+                            <li><strong>Script doesn't appear:</strong> Make sure you're on LinkedIn people search page</li>
+                            <li><strong>Rate limiting:</strong> The script automatically handles rate limits with delays</li>
+                            <li><strong>No results:</strong> Ensure you're logged in to LinkedIn</li>
+                            <li><strong>Button not visible:</strong> Refresh the page or check Tampermonkey is enabled</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>
+                <a href="https://github.com/withLinda/LinkedIn-profile-scraper-lite" target="_blank">View on GitHub</a> | 
+                <a href="https://github.com/withLinda/LinkedIn-profile-scraper-lite/issues" target="_blank">Report Issues</a>
+            </p>
+        </footer>
+    </div>
+    
+    <script>
+        function toggleAccordion(element) {
+            const item = element.parentElement;
+            const wasActive = item.classList.contains('active');
+            
+            // Close all accordions
+            document.querySelectorAll('.accordion-item').forEach(el => {
+                el.classList.remove('active');
+            });
+            
+            // Open clicked accordion if it wasn't active
+            if (!wasActive) {
+                item.classList.add('active');
+            }
+        }
+    </script>
+</body>
+</html>

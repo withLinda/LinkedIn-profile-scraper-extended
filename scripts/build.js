@@ -103,14 +103,18 @@ function buildConsoleVersion() {
 function buildTampermonkeyVersion() {
     console.log('Building Tampermonkey version...');
     
+    // Read package.json to get version
+    const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    const version = pkg.version;
+    
     const core = readFile('src/core.js');
     const ui = readFile('src/ui.js');
     const utils = readFile('src/utils.js');
     
     const tampermonkeyScript = `// ==UserScript==
 // @name         LinkedIn Profile Scraper
-// @namespace    http://tampermonkey.net/
-// @version      1.0.0
+// @namespace    https://github.com/withLinda/LinkedIn-profile-scraper-lite
+// @version      ${version}
 // @description  Scrape LinkedIn profile data from search results
 // @author       LinkedIn Scraper
 // @match        https://www.linkedin.com/search/results/people/*
@@ -118,6 +122,11 @@ function buildTampermonkeyVersion() {
 // @icon         https://www.linkedin.com/favicon.ico
 // @grant        GM_registerMenuCommand
 // @grant        GM_addStyle
+// @downloadURL  https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js
+// @updateURL    https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js
+// @homepage     https://github.com/withLinda/LinkedIn-profile-scraper-lite
+// @supportURL   https://github.com/withLinda/LinkedIn-profile-scraper-lite/issues
+// @license      MIT
 // ==/UserScript==
 
 (function() {
@@ -271,7 +280,15 @@ function buildTampermonkeyVersion() {
     
 })();`;
     
-    writeFile('build/userscript.js', tampermonkeyScript);
+    writeFile('build/linkedin-scraper.user.js', tampermonkeyScript);
+    
+    // Also copy to docs directory for GitHub Pages hosting
+    const docsDir = path.join(__dirname, '..', 'docs');
+    if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(docsDir, 'linkedin-scraper.user.js'), tampermonkeyScript, 'utf8');
+    console.log('✅ Mirrored to: docs/linkedin-scraper.user.js');
 }
 
 function build() {
@@ -287,9 +304,10 @@ function build() {
     buildConsoleVersion();
     buildTampermonkeyVersion();
     
-    console.log('\n✅ Build complete! Files created in /build directory:');
-    console.log('   - console.js    : Copy & paste into browser console');
-    console.log('   - userscript.js : Install via Tampermonkey\n');
+    console.log('\n✅ Build complete! Files created:');
+    console.log('   - build/console.js               : Copy & paste into browser console');
+    console.log('   - build/linkedin-scraper.user.js : Install via Tampermonkey');
+    console.log('   - docs/linkedin-scraper.user.js  : GitHub Pages mirror\n');
 }
 
 // Run build
