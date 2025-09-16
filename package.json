@@ -1,7 +1,7 @@
 {
   "name": "linkedin-scraper",
   "version": "1.0.0",
-  "description": "LinkedIn profile scraper that works as bookmarklet, Tampermonkey script, and console script",
+  "description": "LinkedIn profile scraper that works as Tampermonkey script and console script",
   "main": "src/core.js",
   "scripts": {
     "build": "node scripts/build.js",
@@ -10,7 +10,6 @@
   "keywords": [
     "linkedin",
     "scraper",
-    "bookmarklet",
     "tampermonkey"
   ],
   "author": "",

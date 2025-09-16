@@ -100,78 +100,6 @@ function buildConsoleVersion() {
     writeFile('build/console.js', consoleVersion);
 }
 
-function buildBookmarkletVersion() {
-    console.log('Building bookmarklet version...');
-    
-    const core = readFile('src/core.js');
-    const ui = readFile('src/ui.js');
-    const utils = readFile('src/utils.js');
-    
-    const combined = `(function(){
-        ${core.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-        ${ui.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-        ${utils.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-        
-        if(window.__linkedInScraperRunning__){
-            alert('Scraper already running!');
-            return;
-        }
-        window.__linkedInScraperRunning__=true;
-        
-        if(!window.location.href.includes('linkedin.com/search/results/people')){
-            alert('Please navigate to LinkedIn People search results first');
-            window.__linkedInScraperRunning__=false;
-            return;
-        }
-        
-        const targetCount=prompt('How many profiles to scrape?','300');
-        if(!targetCount){
-            window.__linkedInScraperRunning__=false;
-            return;
-        }
-        
-        const scraper=new LinkedInScraper(parseInt(targetCount)||300);
-        scraper.run().catch(e=>{
-            console.error('Scraper error:',e);
-            alert('Error: '+e.message);
-        }).finally(()=>{
-            window.__linkedInScraperRunning__=false;
-        });
-    })()`;
-    
-    const minified = minifyBasic(combined);
-    const bookmarklet = 'javascript:' + encodeURIComponent(minified);
-    
-    const bookmarkletFile = `/**
- * LinkedIn Profile Scraper - Bookmarklet Version
- * 
- * INSTALLATION:
- * 1. Copy ALL the text below (starting with javascript:)
- * 2. Create a new bookmark in your browser
- * 3. Set the URL to the copied text
- * 4. Name it "LinkedIn Scraper"
- * 
- * USAGE:
- * 1. Navigate to LinkedIn people search results
- * 2. Click the bookmarklet
- * 3. Enter number of profiles to scrape
- * 4. Wait for completion
- * 5. Export results
- * 
- * Note: Due to length, this may not work in all browsers.
- * Use the console version if bookmarklet fails.
- */
-
-${bookmarklet}`;
-    
-    writeFile('build/bookmarklet.js', bookmarkletFile);
-    
-    console.log(`⚠️  Bookmarklet length: ${bookmarklet.length} characters`);
-    if (bookmarklet.length > 2000) {
-        console.log('⚠️  Warning: Bookmarklet may be too long for some browsers (>2000 chars)');
-    }
-}
-
 function buildTampermonkeyVersion() {
     console.log('Building Tampermonkey version...');
     
@@ -357,12 +285,10 @@ function build() {
     
     // Build all versions
     buildConsoleVersion();
-    buildBookmarkletVersion();
     buildTampermonkeyVersion();
     
     console.log('\n✅ Build complete! Files created in /build directory:');
     console.log('   - console.js    : Copy & paste into browser console');
-    console.log('   - bookmarklet.js: Add as browser bookmark');
     console.log('   - userscript.js : Install via Tampermonkey\n');
 }
 

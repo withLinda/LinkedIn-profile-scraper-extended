@@ -161,7 +161,8 @@ For each profile, the scraper collects:
 - **API Endpoint**: LinkedIn Voyager GraphQL API
 - **Request Interval**: 400-1100ms (randomized)
 - **Batch Size**: 10 profiles per request
-- **Auto-Retry**: 3 attempts on rate limithttps://github.com/withLinda/LinkedIn-profile-scraper-lite
+- **Auto-Retry**: 3 attempts on rate limit
+
 ## Privacy & Ethics
 
 - Only scrapes publicly visible information
