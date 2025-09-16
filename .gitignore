@@ -6,3 +6,11 @@ node_modules/
 .idea/
 repomix-output.xml
 MDdocs/
+
+# Debug and temporary files
+debug-script.js
+diagnose.sh
+reinstall.sh
+tampermonkey-checklist.md
+test-minimal.user.js
+commit-message.txt
