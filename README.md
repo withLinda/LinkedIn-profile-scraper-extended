@@ -44,7 +44,8 @@ A LinkedIn profile scraper that extracts data from LinkedIn **people search** re
 
 Short walkthrough: copy → paste → run in Chrome DevTools Console
 
-https://github.com/user-attachments/assets/be01c9a0-88c6-4ed5-9d62-b3669ef34ea6
+https://github.com/user-attachments/assets/3cb4f3ad-996a-472f-9249-26922f9aac69
+
 
 #### Steps
 
