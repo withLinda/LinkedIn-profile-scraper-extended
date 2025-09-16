@@ -1199,7 +1199,7 @@
             return;
         }
         
-        if (!/\/search\/results\/people/.test(location.pathname)) {
+        if (!location.pathname.includes('/search/results/people')) {
             if (confirm('You need to be on a LinkedIn people search page.\n\nNavigate there now?')) {
                 window.location.href = 'https://www.linkedin.com/search/results/people/';
             }
@@ -1263,7 +1263,7 @@
       }
     })();
 
-    const onPeoplePage = () => /\/search\/results\/people/.test(location.pathname);
+    const onPeoplePage = () => location.pathname.includes('/search/results/people');
 
     function ensureButtonVisibility(){
       const btn = document.getElementById('linkedin-scraper-button');
