@@ -65,6 +65,13 @@ https://github.com/user-attachments/assets/be01c9a0-88c6-4ed5-9d62-b3669ef34ea6
 
 ### Method 2: Tampermonkey (Alternative for frequent use) 🐒
 
+#### How-to Video
+
+
+https://github.com/user-attachments/assets/423ae900-c92a-48ec-8f98-6db2e5df6a8b
+
+
+#### Steps
 First, install Tampermonkey:  
 [Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) ·
 [Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) ·
