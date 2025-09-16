@@ -32,7 +32,7 @@
     window.__linkedInScraperRunning__ = true;
     
     // Verify we're on LinkedIn search
-    if (!window.location.href.includes('linkedin.com/search/results/people')) {
+    if (!/\/search\/results\/people/.test(location.pathname)) {
         alert('Please navigate to LinkedIn People search results first\n\nGo to: linkedin.com → Search for people → Then run this script');
         window.__linkedInScraperRunning__ = false;
         return;

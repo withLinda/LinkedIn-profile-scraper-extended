@@ -62,7 +62,7 @@ function buildConsoleVersion() {
     window.__linkedInScraperRunning__ = true;
     
     // Verify we're on LinkedIn search
-    if (!window.location.href.includes('linkedin.com/search/results/people')) {
+    if (!/\\/search\\/results\\/people/.test(location.pathname)) {
         alert('Please navigate to LinkedIn People search results first\\n\\nGo to: linkedin.com → Search for people → Then run this script');
         window.__linkedInScraperRunning__ = false;
         return;
@@ -117,8 +117,10 @@ function buildTampermonkeyVersion() {
 // @version      ${version}
 // @description  Scrape LinkedIn profile data from search results
 // @author       LinkedIn Scraper
-// @match        https://www.linkedin.com/search/results/people/*
-// @match        https://www.linkedin.com/search/results/all/*
+// @match        https://*.linkedin.com/search/results/people*
+// @match        https://*.linkedin.com/search/results/all*
+// @run-at       document-idle
+// @noframes
 // @icon         https://www.linkedin.com/favicon.ico
 // @grant        GM_registerMenuCommand
 // @grant        GM_addStyle
@@ -196,7 +198,7 @@ function buildTampermonkeyVersion() {
             return;
         }
         
-        if (!window.location.href.includes('linkedin.com/search/results/people')) {
+        if (!/\\/search\\/results\\/people/.test(location.pathname)) {
             if (confirm('You need to be on a LinkedIn people search page.\\n\\nNavigate there now?')) {
                 window.location.href = 'https://www.linkedin.com/search/results/people/';
             }
@@ -246,39 +248,70 @@ function buildTampermonkeyVersion() {
         });
     }
     
-    // Add CSS animation
-    GM_addStyle(\`
-        @keyframes slideIn {
-            from {
-                transform: translateX(100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(0);
-                opacity: 1;
-            }
+    // ---------- Robust boot: people-only, SPA-aware, idempotent ----------
+    // 1) Keyframes with GM_addStyle guard and fallback
+    (function addKeyframes(){
+      const css='@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}';
+      if (typeof GM_addStyle==='function') {
+        GM_addStyle(css);
+      }
+      else {
+        const s=document.createElement('style');
+        s.textContent=css;
+        (document.head||document.documentElement).appendChild(s);
+      }
+    })();
+
+    const onPeoplePage = () => /\\/search\\/results\\/people/.test(location.pathname);
+
+    function ensureButtonVisibility(){
+      const btn = document.getElementById('linkedin-scraper-button');
+      if (onPeoplePage()) {
+        if (!btn) addScraperButton();
+      }
+      else if (btn) {
+        btn.remove();
+      }
+    }
+
+    // 2) Ready + safety retry
+    if (document.readyState==='loading') {
+      document.addEventListener('DOMContentLoaded', () => ensureButtonVisibility(), { once:true });
+    } else {
+      ensureButtonVisibility();
+    }
+    setTimeout(ensureButtonVisibility, 1000);
+
+    // 3) SPA route changes via History API hooks
+    (function hookHistory(){
+      const _p=history.pushState, _r=history.replaceState;
+      const fire=()=>window.dispatchEvent(new Event('locationchange'));
+      history.pushState=function(...a){const o=_p.apply(this,a);fire();return o;};
+      history.replaceState=function(...a){const o=_r.apply(this,a);fire();return o;};
+      window.addEventListener('popstate', fire);
+    })();
+    window.addEventListener('locationchange', ensureButtonVisibility);
+
+    // 4) DOM re-renders observer
+    function startObserver(){
+      const root = document.body || document.documentElement;
+      if (!root) return;
+      new MutationObserver(() => ensureButtonVisibility()).observe(root, { childList:true, subtree:true });
+    }
+
+    if (document.body) {
+      startObserver();
+    } else {
+      new MutationObserver((_,obs)=>{
+        if (document.body){
+          startObserver();
+          obs.disconnect();
         }
-    \`);
-    
-    // Initialize button when page loads
-    window.addEventListener('load', () => {
-        setTimeout(addScraperButton, 2000);
-    });
-    
-    // Re-add button when navigating
-    const observer = new MutationObserver(() => {
-        if (window.location.href.includes('linkedin.com/search/results/people')) {
-            addScraperButton();
-        }
-    });
-    
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
-    
+      }).observe(document.documentElement, { childList:true });
+    }
+
     console.log('🔍 LinkedIn Scraper loaded! Click the "Scrape Profiles" button or use Tampermonkey menu.');
-    
+
 })();`;
     
     writeFile('build/linkedin-scraper.user.js', tampermonkeyScript);
