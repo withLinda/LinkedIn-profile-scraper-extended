@@ -150,43 +150,44 @@ function buildTampermonkeyVersion() {
     function addScraperButton() {
         if (document.getElementById('linkedin-scraper-button')) return;
         
-        const searchBar = document.querySelector('.search-global-typeahead') || 
-                         document.querySelector('.search-reusables__primary-filter');
-        
-        if (searchBar) {
-            const button = document.createElement('button');
-            button.id = 'linkedin-scraper-button';
-            button.textContent = '🔍 Scrape Profiles';
-            button.style.cssText = \`
-                position: fixed;
-                top: 70px;
-                right: 20px;
-                z-index: 9998;
-                background: #0077b5;
-                color: white;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 20px;
-                font-weight: 600;
-                cursor: pointer;
-                font-size: 14px;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                transition: all 0.3s;
-            \`;
-            
-            button.onmouseover = () => {
-                button.style.background = '#005885';
-                button.style.transform = 'scale(1.05)';
-            };
-            
-            button.onmouseout = () => {
-                button.style.background = '#0077b5';
-                button.style.transform = 'scale(1)';
-            };
-            
-            button.onclick = startScraper;
-            document.body.appendChild(button);
+        const buttonHost = document.body;
+        if (!buttonHost) {
+            console.warn('LinkedIn Scraper: unable to locate page body to attach button.');
+            return;
         }
+
+        const button = document.createElement('button');
+        button.id = 'linkedin-scraper-button';
+        button.textContent = '🔍 Scrape Profiles';
+        button.style.cssText = \`
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            z-index: 9998;
+            background: #0077b5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        \`;
+        
+        button.onmouseover = () => {
+            button.style.background = '#005885';
+            button.style.transform = 'scale(1.05)';
+        };
+        
+        button.onmouseout = () => {
+            button.style.background = '#0077b5';
+            button.style.transform = 'scale(1)';
+        };
+        
+        button.onclick = startScraper;
+        buttonHost.appendChild(button);
     }
     
     function startScraper() {
