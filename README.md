@@ -29,6 +29,9 @@ A LinkedIn profile scraper that extracts data from LinkedIn **people search** re
 ![HTML Results](image-for-readme/HTML-results.png)  
 *Clean, formatted HTML export with all profile data*
 
+### The script installed through Tampermonkey has a button labeled “Scrape profiles”
+![tampermonkey-button](https://github.com/user-attachments/assets/dea76134-b425-4833-8f52-23f5d7131542)
+
 ---
 
 ## 🚀 Quick Start
