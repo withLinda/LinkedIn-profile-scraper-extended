@@ -45,7 +45,75 @@
         return finalUrl;
     }
 
-    const mod = { buildLinkedInSearchUrl };
+    // NEW: mirror of the old core.js extractKeyword()
+    function extractKeywordFromPage() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const keywords = urlParams.get('keywords');
+        if (keywords) return keywords;
+        const searchBox = document.querySelector('input[placeholder*="Search"]');
+        return (searchBox && searchBox.value) ? searchBox.value : '';
+    }
+
+    // NEW: local copy of CSRF token getter so this file is self-contained for requests
+    function getCsrfTokenForVoyager() {
+        const cookies = (typeof document!=='undefined' ? document.cookie : '').split(';');
+        for (let cookie of cookies) {
+            const [name, value] = cookie.trim().split('=');
+            if (name === 'JSESSIONID') {
+                const cleanValue = String(value || '').replace(/\"/g, '');
+                try { return decodeURIComponent(cleanValue); } catch { return cleanValue; }
+            }
+        }
+        return null;
+    }
+
+    // NEW: request builder (URL + headers) used by fetch
+    function buildVoyagerRequest({ keyword = '', start = 0, count = 10 }) {
+        const url = buildLinkedInSearchUrl({ keyword, start, count });
+        const headers = {
+            'x-restli-protocol-version': '2.0.0',
+            'accept': 'application/vnd.linkedin.normalized+json+2.1'
+        };
+        const csrf = getCsrfTokenForVoyager();
+        if (csrf) headers['csrf-token'] = csrf;
+        return { url, headers };
+    }
+
+    // NEW: performs the network call and JSON parsing; returns { data, included }
+    async function fetchVoyagerJson({ keyword = '', start = 0, count = 10 }) {
+        const { url, headers } = buildVoyagerRequest({ keyword, start, count });
+        const response = await fetch(url, {
+            method: 'GET',
+            headers,
+            credentials: 'include'
+        });
+        if (response.status === 429) throw new Error('RATE_LIMIT');
+        if (!response.ok) {
+            // Keep response body trimming as in core.js for parity/debugability
+            const body = await response.text().catch(() => '');
+            console.error('[Voyager] HTTP', response.status, body.slice(0, 500));
+            throw new Error(`HTTP ${response.status}`);
+        }
+        const clone = response.clone();
+        let data;
+        try {
+            data = await response.json();
+        } catch (e) {
+            const body = await clone.text().catch(() => '');
+            console.error('[Voyager] Non-JSON body:', body.slice(0, 500));
+            throw e;
+        }
+        const rawIncluded = data?.included ?? data?.data?.included ?? [];
+        const included = Array.isArray(rawIncluded) ? rawIncluded : [];
+        return { data, included };
+    }
+
+    const mod = {
+        buildLinkedInSearchUrl,
+        extractKeywordFromPage,
+        buildVoyagerRequest,
+        fetchVoyagerJson
+    };
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = mod;
@@ -54,4 +122,3 @@
     root.LinkedInScraperModules = root.LinkedInScraperModules || {};
     root.LinkedInScraperModules.libBuildUrl = mod;
 })();
-

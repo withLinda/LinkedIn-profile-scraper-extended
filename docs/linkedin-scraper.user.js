@@ -247,43 +247,6 @@
     })();
 
 
-    // Parse helpers
-    ;
-    (function() {
-        'use strict';
-    
-        function parseFollowers(text) {
-            if (!text || typeof text !== 'string') return null;
-    
-            const trimmed = text.trim();
-            if (!trimmed) return null;
-    
-            const match = trimmed.match(/([0-9][0-9.,]*)\s*([KkMm])?/);
-            if (!match) return null;
-    
-            const baseNumber = parseFloat(match[1].replace(/[\,\s]/g, ''));
-            if (!Number.isFinite(baseNumber)) return null;
-    
-            const suffix = (match[2] || '').toUpperCase();
-            let value = baseNumber;
-            if (suffix === 'K') value *= 1_000;
-            else if (suffix === 'M') value *= 1_000_000;
-    
-            return Math.round(value);
-        }
-    
-        const linkedinParseModule = { parseFollowers };
-    
-        if (typeof module !== 'undefined' && module.exports) {
-            module.exports = linkedinParseModule;
-        }
-    
-        const linkedinParseRoot = typeof globalThis !== 'undefined' ? globalThis : window;
-        linkedinParseRoot.LinkedInScraperModules = linkedinParseRoot.LinkedInScraperModules || {};
-        linkedinParseRoot.LinkedInScraperModules.parse = linkedinParseModule;
-    })();
-
-
     // Build URL
     ;
     (function() {
@@ -333,7 +296,75 @@
             return finalUrl;
         }
     
-        const mod = { buildLinkedInSearchUrl };
+        // NEW: mirror of the old core.js extractKeyword()
+        function extractKeywordFromPage() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const keywords = urlParams.get('keywords');
+            if (keywords) return keywords;
+            const searchBox = document.querySelector('input[placeholder*="Search"]');
+            return (searchBox && searchBox.value) ? searchBox.value : '';
+        }
+    
+        // NEW: local copy of CSRF token getter so this file is self-contained for requests
+        function getCsrfTokenForVoyager() {
+            const cookies = (typeof document!=='undefined' ? document.cookie : '').split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'JSESSIONID') {
+                    const cleanValue = String(value || '').replace(/\"/g, '');
+                    try { return decodeURIComponent(cleanValue); } catch { return cleanValue; }
+                }
+            }
+            return null;
+        }
+    
+        // NEW: request builder (URL + headers) used by fetch
+        function buildVoyagerRequest({ keyword = '', start = 0, count = 10 }) {
+            const url = buildLinkedInSearchUrl({ keyword, start, count });
+            const headers = {
+                'x-restli-protocol-version': '2.0.0',
+                'accept': 'application/vnd.linkedin.normalized+json+2.1'
+            };
+            const csrf = getCsrfTokenForVoyager();
+            if (csrf) headers['csrf-token'] = csrf;
+            return { url, headers };
+        }
+    
+        // NEW: performs the network call and JSON parsing; returns { data, included }
+        async function fetchVoyagerJson({ keyword = '', start = 0, count = 10 }) {
+            const { url, headers } = buildVoyagerRequest({ keyword, start, count });
+            const response = await fetch(url, {
+                method: 'GET',
+                headers,
+                credentials: 'include'
+            });
+            if (response.status === 429) throw new Error('RATE_LIMIT');
+            if (!response.ok) {
+                // Keep response body trimming as in core.js for parity/debugability
+                const body = await response.text().catch(() => '');
+                console.error('[Voyager] HTTP', response.status, body.slice(0, 500));
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const clone = response.clone();
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                const body = await clone.text().catch(() => '');
+                console.error('[Voyager] Non-JSON body:', body.slice(0, 500));
+                throw e;
+            }
+            const rawIncluded = data?.included ?? data?.data?.included ?? [];
+            const included = Array.isArray(rawIncluded) ? rawIncluded : [];
+            return { data, included };
+        }
+    
+        const mod = {
+            buildLinkedInSearchUrl,
+            extractKeywordFromPage,
+            buildVoyagerRequest,
+            fetchVoyagerJson
+        };
     
         if (typeof module !== 'undefined' && module.exports) {
             module.exports = mod;
@@ -352,7 +383,6 @@
         function getModuleExports() {
             if (typeof module !== 'undefined' && module.exports) {
                 return {
-                    parse: require('../lib/parse'),
                     url: require('../lib/url')
                 };
             }
@@ -360,12 +390,11 @@
             const linkedinExtractorRoot = typeof globalThis !== 'undefined' ? globalThis : window;
             const modules = linkedinExtractorRoot.LinkedInScraperModules || {};
             return {
-                parse: modules.parse || {},
                 url: modules.url || {}
             };
         }
     
-        const { parse, url } = getModuleExports();
+        const { url } = getModuleExports();
         const sanitizeProfileUrl = url.sanitizeProfileUrl || (() => null);
         const extractMiniProfileUrn = url.extractMiniProfileUrn || (() => null);
     
@@ -429,22 +458,23 @@
     (function() {
         'use strict';
     
-        function getBuildUrlFn() {
+        // Return the entire buildUrl module instead of only one function
+        function getBuildUrlModule() {
             if (typeof module !== 'undefined' && module.exports) {
                 try {
-                    const mod = require('./lib/buildUrl');
-                    if (mod && typeof mod.buildLinkedInSearchUrl === 'function') return mod.buildLinkedInSearchUrl;
+                    return require('./lib/buildUrl');
                 } catch (e) { /* ignore */ }
             }
             const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
             const mods = root.LinkedInScraperModules || {};
-            const libBuildUrl = mods.libBuildUrl || {};
-            return typeof libBuildUrl.buildLinkedInSearchUrl === 'function'
-                ? libBuildUrl.buildLinkedInSearchUrl
-                : function(){ return ''; };
+            return mods.libBuildUrl || {};
         }
     
-        const buildLinkedInSearchUrl = getBuildUrlFn();
+        // Destructure helpers from lib/buildUrl with safe fallbacks
+        const __buildUrl__ = getBuildUrlModule();
+        const buildLinkedInSearchUrl = typeof __buildUrl__.buildLinkedInSearchUrl === 'function' ? __buildUrl__.buildLinkedInSearchUrl : function(){ return ''; };
+        const extractKeywordFromPage = typeof __buildUrl__.extractKeywordFromPage === 'function' ? __buildUrl__.extractKeywordFromPage : function(){ return ''; };
+        const fetchVoyagerJson = typeof __buildUrl__.fetchVoyagerJson === 'function' ? __buildUrl__.fetchVoyagerJson : null;
     
         function getCsrfToken() {
             const cookies = document.cookie.split(';');
@@ -500,7 +530,7 @@
         class LinkedInScraper {
             constructor(targetCount = 300, keyword = null) {
                 this.targetCount = targetCount;
-                this.keyword = keyword || this.extractKeyword();
+                this.keyword = (keyword != null) ? keyword : extractKeywordFromPage();
                 this.people = [];
                 this.seen = new Set();
                 this.ui = null;
@@ -509,112 +539,12 @@
                 this.pageSize = 10; // keep in sync with GraphQL count
             }
             
-            extractKeyword() {
-                const urlParams = new URLSearchParams(window.location.search);
-                const keywords = urlParams.get('keywords');
-                
-                // Debug logging
-                console.log('=== URL PARAMETERS ===');
-                urlParams.forEach((value, key) => {
-                    console.log(`${key}: ${value}`);
-                });
-                console.log('====================');
-                
-                if (keywords) return keywords;
-                
-                const searchBox = document.querySelector('input[placeholder*="Search"]');
-                if (searchBox && searchBox.value) return searchBox.value;
-                
-                return '';
-            }
-            
             async delay(min = 400, max = 1100) {
                 const ms = Math.floor(Math.random() * (max - min + 1)) + min;
                 return new Promise(resolve => setTimeout(resolve, ms));
             }
             
-            async fetchPage(start) {
-                const url = buildLinkedInSearchUrl({
-                    keyword: this.keyword,
-                    start, count: this.pageSize
-                });
-                const csrfToken = getCsrfToken();
-                
-                const headers = {
-                    'x-restli-protocol-version': '2.0.0',
-                    'accept': 'application/vnd.linkedin.normalized+json+2.1'
-                };
-                
-                if (csrfToken) {
-                    headers['csrf-token'] = csrfToken;
-                }
-                
-                try {
-                    console.log(`Fetching page starting at ${start}...`);
-                    console.log(`URL: ${url}`); // Add this for debugging
-                    
-                    const response = await fetch(url, {
-                        method: 'GET',
-                        headers: headers,
-                        credentials: 'include'
-                    });
-                    
-                    if (response.status === 429) {
-                        throw new Error('RATE_LIMIT');
-                    }
-                    
-                    if (!response.ok) {
-                        const body = await response.text().catch(() => '');
-                        console.error('[Voyager] HTTP', response.status, body.slice(0, 500));
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-    
-                    const responseClone = response.clone();
-                    let data;
-                    try {
-                        data = await response.json();
-                    } catch (e) {
-                        const body = await responseClone.text().catch(() => '');
-                        console.error('[Voyager] Non-JSON body:', body.slice(0, 500));
-                        throw e;
-                    }
-    
-                    const rawIncluded = data?.included ?? data?.data?.included ?? [];
-                    const included = Array.isArray(rawIncluded) ? rawIncluded : [];
-    
-                    const hasPromo = included.some(item => (
-                        item && typeof item.$type === 'string' && item.$type.includes('PromoCard')
-                    ) || /monthly limit/i.test(item?.subtitle?.text || ''));
-    
-                    const newPeople = extractPeopleFromResponse({ included });
-    
-                    if (hasPromo && newPeople.length === 0 && this.ui) {
-                        this.ui.showError('LinkedIn search limit reached or results truncated by promo.');
-                    }
-                    
-                    let addedCount = 0;
-                    for (let person of newPeople) {
-                        const key = person.profileUrl;
-                        if (!key || this.seen.has(key)) continue;
-                        this.seen.add(key);
-                        this.people.push(person);
-                        if (this.ui) {
-                            this.ui.addRow(person);
-                        }
-                        addedCount++;
-                    }
-                    
-                    console.log(`Found ${addedCount} new profiles (Total: ${this.people.length})`);
-                    return addedCount > 0;
-                    
-                } catch (error) {
-                    if (error.message === 'RATE_LIMIT') {
-                        throw error;
-                    }
-                    console.error('Fetch error:', error);
-                    throw error;
-                }
-            }
+            
             
             async handleRateLimit() {
                 this.retryCount++;
@@ -650,7 +580,37 @@
                     }
                     
                     try {
-                        const hasResults = await this.fetchPage(start);
+                        // NEW: delegate the network call to lib/buildUrl
+                        if (typeof fetchVoyagerJson !== 'function') {
+                            throw new Error('fetchVoyagerJson not available');
+                        }
+                        const { included } = await fetchVoyagerJson({
+                            keyword: this.keyword,
+                            start,
+                            count: this.pageSize
+                        });
+    
+                        const hasPromo = included.some(item => (
+                            item && typeof item.$type === 'string' && item.$type.includes('PromoCard')
+                        ) || /monthly limit/i.test(item?.subtitle?.text || ''));
+    
+                        const newPeople = extractPeopleFromResponse({ included });
+                        if (hasPromo && newPeople.length === 0 && this.ui) {
+                            this.ui.showError('LinkedIn search limit reached or results truncated by promo.');
+                        }
+    
+                        let addedCount = 0;
+                        for (let person of newPeople) {
+                            const key = person.profileUrl;
+                            if (!key || this.seen.has(key)) continue;
+                            this.seen.add(key);
+                            this.people.push(person);
+                            if (this.ui) {
+                                this.ui.addRow(person);
+                            }
+                            addedCount++;
+                        }
+                        const hasResults = addedCount > 0;
                         
                         if (!hasResults) {
                             consecutiveEmptyPages++;

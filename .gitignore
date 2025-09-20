@@ -22,7 +22,7 @@ repomix-output.xml
 
 
 # Temporary ignore during development
-#INSTALL.md
-#README.md
-#docs/
-#build/
+INSTALL.md
+README.md
+docs/
+build/
