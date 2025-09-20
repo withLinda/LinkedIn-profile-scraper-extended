@@ -19,6 +19,17 @@
     const extractKeywordFromPage = typeof __buildUrl__.extractKeywordFromPage === 'function' ? __buildUrl__.extractKeywordFromPage : function(){ return ''; };
     const fetchVoyagerJson = typeof __buildUrl__.fetchVoyagerJson === 'function' ? __buildUrl__.fetchVoyagerJson : null;
 
+    // Resolve profile lib
+    function getProfileModule(){
+        if (typeof module!=='undefined' && module.exports) {
+            try { return require('./lib/profile'); } catch(_) { /* ignore */ }
+        }
+        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+        const mods = root.LinkedInScraperModules || {};
+        return mods.profile || {};
+    }
+    const __profile__ = getProfileModule();
+
     function getCsrfToken() {
         const cookies = document.cookie.split(';');
         for (let cookie of cookies) {
@@ -154,10 +165,50 @@
                         const key = person.profileUrl;
                         if (!key || this.seen.has(key)) continue;
                         this.seen.add(key);
-                        this.people.push(person);
-                        if (this.ui) {
-                            this.ui.addRow(person);
+                        // --- Enrich with profile (About/Experience/Education) when urnCode present
+                        if (person.urnCode && __profile__ && typeof __profile__.fetchProfileJson==='function' && typeof __profile__.parseProfile==='function') {
+                            let attempts = 0;
+                            while (attempts < 2) {
+                                try {
+                                    const { included } = await __profile__.fetchProfileJson(person.urnCode, null);
+                                    const parsed = __profile__.parseProfile(included || []);
+                                    // About
+                                    if (parsed.about) person.about = parsed.about;
+                                    // Experience (flatten first 3)
+                                    const exp = Array.isArray(parsed.experiences) ? parsed.experiences.slice(0,3) : [];
+                                    for (let i=0; i<3; i++){
+                                        const e = exp[i] || {};
+                                        person[`exp${i+1}_company`] = e.companyName || '';
+                                        person[`exp${i+1}_position`] = e.positionTitle || '';
+                                        person[`exp${i+1}_duration`] = e.duration || '';
+                                        person[`exp${i+1}_position_duration`] = e.positionDuration || '';
+                                        person[`exp${i+1}_description`] = e.jobDescription || '';
+                                    }
+                                    // Education (flatten first 3)
+                                    const edu = Array.isArray(parsed.education) ? parsed.education.slice(0,3) : [];
+                                    for (let i=0; i<3; i++){
+                                        const d = edu[i] || {};
+                                        person[`edu${i+1}_institution`] = d.institutionName || '';
+                                        person[`edu${i+1}_degree`] = d.degree || '';
+                                        person[`edu${i+1}_grade`] = d.grade || '';
+                                        person[`edu${i+1}_description`] = d.educationDescription || '';
+                                    }
+                                    break; // success
+                                } catch (e) {
+                                    if (e && e.message === 'RATE_LIMIT') {
+                                        await this.handleRateLimit();
+                                        attempts++;
+                                        continue;
+                                    }
+                                    // Non-rate-limit errors: log and continue without enrichment
+                                    console.warn('Profile enrichment failed:', e);
+                                    break;
+                                }
+                            }
                         }
+                        // Now add to model/UI
+                        this.people.push(person);
+                        if (this.ui) this.ui.addRow(person);
                         addedCount++;
                     }
                     const hasResults = addedCount > 0;

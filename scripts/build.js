@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// NOTE: keep concatenation order: tokens -> theme -> shared/modResolver -> libs(auth,url,buildUrl) -> core -> exporters/shared -> exporters -> utils -> styles -> ui
+// NOTE: keep concatenation order: tokens -> theme -> shared/modResolver -> libs(auth,url,buildUrl,profile) -> core -> exporters/shared -> exporters -> utils -> styles -> ui
 
 function readFile(filePath) {
     return fs.readFileSync(path.join(__dirname, '..', filePath), 'utf8');
@@ -43,6 +43,7 @@ function buildConsoleVersion() {
     const urlLib = readModule('src/lib/url.js');
     const authLib = readModule('src/lib/auth.js');
     const buildUrlLib = readModule('src/lib/buildUrl.js');
+    const profileLib = readModule('src/lib/profile.js');
     const extractor = readModule('src/extractors/linkedin.js');
     const core = readModule('src/core.js');
     const exportShared = readModule('src/export/shared.js');
@@ -105,6 +106,7 @@ function buildConsoleVersion() {
     // Auth${injectModule(authLib)}
 
     // Build URL${injectModule(buildUrlLib)}
+    // Profile lib${injectModule(profileLib)}
 
     // LinkedIn extractors${injectModule(extractor)}
 
@@ -157,6 +159,7 @@ function buildTampermonkeyVersion() {
     const urlLib = readModule('src/lib/url.js');
     const authLib = readModule('src/lib/auth.js');
     const buildUrlLib = readModule('src/lib/buildUrl.js');
+    const profileLib = readModule('src/lib/profile.js');
     const extractor = readModule('src/extractors/linkedin.js');
     const core = readModule('src/core.js');
     const exportShared = readModule('src/export/shared.js');
@@ -208,6 +211,7 @@ function buildTampermonkeyVersion() {
     // Auth${injectModule(authLib)}
 
     // Build URL${injectModule(buildUrlLib)}
+    // Profile lib${injectModule(profileLib)}
 
     // LinkedIn extractors${injectModule(extractor)}
 

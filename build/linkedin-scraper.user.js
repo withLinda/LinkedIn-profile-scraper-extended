@@ -39,7 +39,38 @@
             { key: 'location', label: 'Location' },
             { key: 'current', label: 'Current' },
             { key: 'followers', label: 'Followers' },
-            { key: 'urnCode', label: 'URN Code' }
+            { key: 'urnCode', label: 'URN Code' },
+            // ---- Profile enrichment (About)
+            { key: 'about', label: 'About' },
+            // ---- Experience (first 3)
+            { key: 'exp1_company', label: 'Experience 1 - Company' },
+            { key: 'exp1_position', label: 'Experience 1 - Position' },
+            { key: 'exp1_duration', label: 'Experience 1 - Company Duration' },
+            { key: 'exp1_position_duration', label: 'Experience 1 - Position Duration' },
+            { key: 'exp1_description', label: 'Experience 1 - Description' },
+            { key: 'exp2_company', label: 'Experience 2 - Company' },
+            { key: 'exp2_position', label: 'Experience 2 - Position' },
+            { key: 'exp2_duration', label: 'Experience 2 - Company Duration' },
+            { key: 'exp2_position_duration', label: 'Experience 2 - Position Duration' },
+            { key: 'exp2_description', label: 'Experience 2 - Description' },
+            { key: 'exp3_company', label: 'Experience 3 - Company' },
+            { key: 'exp3_position', label: 'Experience 3 - Position' },
+            { key: 'exp3_duration', label: 'Experience 3 - Company Duration' },
+            { key: 'exp3_position_duration', label: 'Experience 3 - Position Duration' },
+            { key: 'exp3_description', label: 'Experience 3 - Description' },
+            // ---- Education (first 3)
+            { key: 'edu1_institution', label: 'Education 1 - Institution' },
+            { key: 'edu1_degree', label: 'Education 1 - Degree' },
+            { key: 'edu1_grade', label: 'Education 1 - Grade' },
+            { key: 'edu1_description', label: 'Education 1 - Description' },
+            { key: 'edu2_institution', label: 'Education 2 - Institution' },
+            { key: 'edu2_degree', label: 'Education 2 - Degree' },
+            { key: 'edu2_grade', label: 'Education 2 - Grade' },
+            { key: 'edu2_description', label: 'Education 2 - Description' },
+            { key: 'edu3_institution', label: 'Education 3 - Institution' },
+            { key: 'edu3_degree', label: 'Education 3 - Degree' },
+            { key: 'edu3_grade', label: 'Education 3 - Grade' },
+            { key: 'edu3_description', label: 'Education 3 - Description' }
         ];
     
         const linkedinSchemaModule = { PERSON_COLUMNS };
@@ -437,6 +468,209 @@
         root.LinkedInScraperModules.libBuildUrl = mod;
     })();
 
+    // Profile lib
+    ;
+    (function(){
+      'use strict';
+    
+      function getResolver(){
+        if (typeof module!=='undefined' && module.exports) {
+          try { return require('../shared/modResolver'); } catch(_) { return null; }
+        }
+        const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+        return (r.LinkedInScraperModules||{}).modResolver || null;
+      }
+      function getAuth(){
+        const res = getResolver();
+        if (res && res.resolve) return res.resolve('./auth','auth');
+        try { if (typeof module!=='undefined' && module.exports) return require('./auth'); } catch(_) { return {}; }
+        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+        return (root.LinkedInScraperModules||{}).auth || {};
+      }
+    
+      // -- URL builder for profile GraphQL
+      function buildProfileUrl(urnId){
+        // urnId like "ACoAABxSf60B8FuXw29q6dU2BWvmGAdGUie4MYI"
+        const encodedUrn = encodeURIComponent(`urn:li:fsd_profile:${urnId}`).replace(/%3A/g, '%3A');
+        const variables = `variables=(profileUrn:${encodedUrn})`;
+        const queryId  = 'queryId=voyagerIdentityDashProfileCards.f0415f0ff9d9968bab1cd89c0352f7c8';
+        return `https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&${variables}&${queryId}`;
+      }
+    
+      async function fetchProfileJson(urnId, csrfToken){
+        const url = buildProfileUrl(urnId);
+        const headers = {
+          'x-restli-protocol-version': '2.0.0',
+          'accept': 'application/vnd.linkedin.normalized+json+2.1'
+        };
+        const auth = getAuth();
+        const token = csrfToken || (auth && typeof auth.getCsrfToken==='function' ? auth.getCsrfToken() : null);
+        if (token) headers['csrf-token'] = token;
+    
+        const res = await fetch(url, { method:'GET', headers, credentials:'include' });
+        if (res.status === 429) throw new Error('RATE_LIMIT');
+        if (!res.ok) {
+          const body = await res.text().catch(()=> '');
+          console.error('[Profile] HTTP', res.status, body.slice(0,500));
+          throw new Error(`HTTP ${res.status}`);
+        }
+        let data;
+        try { data = await res.json(); }
+        catch (e) {
+          const clone = res.clone();
+          const body = await clone.text().catch(()=> '');
+          console.error('[Profile] Non-JSON body:', body.slice(0,500));
+          throw e;
+        }
+        const rawIncluded = data?.included ?? data?.data?.included ?? [];
+        const included = Array.isArray(rawIncluded) ? rawIncluded : [];
+        return { data, included };
+      }
+    
+      // --- Generic deep walker utilities
+      function walk(node, visitor){
+        if (!node || typeof node !== 'object') return;
+        visitor(node);
+        for (const k in node){
+          const v = node[k];
+          if (!v) continue;
+          if (Array.isArray(v)) { for (const item of v) walk(item, visitor); }
+          else if (typeof v === 'object') walk(v, visitor);
+        }
+      }
+      function get(obj, pathStr){
+        if (!obj) return undefined;
+        const parts = pathStr.split('.');
+        let cur = obj;
+        for (const p of parts){
+          if (cur == null) return undefined;
+          const idx = /^\d+$/.test(p) ? Number(p) : p;
+          cur = cur[idx];
+        }
+        return cur;
+      }
+      function firstNonEmpty(...candidates){
+        for (const c of candidates){
+          if (typeof c === 'string' && c.trim()) return c.trim();
+        }
+        return null;
+      }
+    
+      // ---- Heuristics for locating sections
+      function pickAboutText(included){
+        // Find any reasonably long textComponent within a "card"/"topComponents" subtree
+        const texts = [];
+        for (const item of included){
+          if (!item || typeof item !== 'object') continue;
+          const bucket = [];
+          walk(item, (n)=>{
+            const text = get(n, 'textComponent.text.accessibilityText') || get(n, 'text.text.accessibilityText');
+            if (typeof text === 'string') {
+              const t = text.trim();
+              if (t && t.length >= 40) bucket.push(t);
+            }
+          });
+          if (bucket.length) texts.push(bucket.sort((a,b)=>b.length-a.length)[0]);
+        }
+        if (!texts.length) return null;
+        const about = texts.sort((a,b)=>b.length-a.length)[0];
+        return about || null;
+      }
+    
+      function collectFixedLists(included){
+        // Return arrays of list nodes likely belonging to Experience or Education
+        const lists = [];
+        for (const item of included){
+          walk(item, (n)=>{
+            const list = get(n, 'fixedListComponent.components');
+            if (Array.isArray(list) && list.length){
+              lists.push(list);
+            }
+          });
+        }
+        return lists;
+      }
+    
+      function looksLikeExperienceEntity(node){
+        // entityComponent with nested subComponents containing another entityComponent (position)
+        return !!get(node, 'components.entityComponent.subComponents.components.0.components.entityComponent.titleV2.text.accessibilityText');
+      }
+      function looksLikeEducationEntity(node){
+        const hasDegreeOrSub = !!firstNonEmpty(
+          get(node, 'components.entityComponent.subtitle.accessibilityText'),
+          get(node, 'components.entityComponent.titleV2.text.accessibilityText')
+        );
+        const hasGradeOrDesc = !!firstNonEmpty(
+          get(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText'),
+          get(node, 'components.entityComponent.subComponents.components.1.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText')
+        );
+        return hasDegreeOrSub || hasGradeOrDesc;
+      }
+    
+      function parseExperiencesFromList(list){
+        const out = [];
+        for (const node of list){
+          const companyName = get(node, 'components.entityComponent.titleV2.text.accessibilityText') || null;
+          const duration    = get(node, 'components.entityComponent.subtitle.accessibilityText') || null;
+          const positionTitle = get(node, 'components.entityComponent.subComponents.components.0.components.entityComponent.titleV2.text.accessibilityText') || null;
+          const positionDuration = get(node, 'components.entityComponent.subComponents.components.0.components.entityComponent.caption.accessibilityText') || null;
+          const jobDescription = get(node, 'components.entityComponent.subComponents.components.0.components.entityComponent.subComponents.components.0.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText') || null;
+    
+          if (!firstNonEmpty(companyName, positionTitle, duration, jobDescription)) continue;
+          out.push({ companyName, duration, positionTitle, positionDuration, jobDescription });
+          if (out.length >= 3) break; // only first 3
+        }
+        return out;
+      }
+    
+      function parseEducationFromList(list){
+        const out = [];
+        for (const node of list){
+          const institutionName = get(node, 'components.entityComponent.titleV2.text.accessibilityText') || null;
+          const degree          = get(node, 'components.entityComponent.subtitle.accessibilityText') || null;
+          const grade           = get(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText') || null;
+          const educationDescription = get(node, 'components.entityComponent.subComponents.components.1.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText') || null;
+    
+          if (!firstNonEmpty(institutionName, degree, grade, educationDescription)) continue;
+          out.push({ institutionName, degree, grade, educationDescription });
+          if (out.length >= 3) break; // only first 3
+        }
+        return out;
+      }
+    
+      function parseProfile(included){
+        const about = pickAboutText(included);
+        const lists = collectFixedLists(included);
+    
+        let experiences = [];
+        let education = [];
+    
+        for (const list of lists){
+          if (!Array.isArray(list) || !list.length) continue;
+          const first = list[0];
+          if (looksLikeExperienceEntity(first)){
+            if (!experiences.length) experiences = parseExperiencesFromList(list);
+          } else if (looksLikeEducationEntity(first)){
+            if (!education.length) education = parseEducationFromList(list);
+          }
+          if (experiences.length && education.length) break;
+        }
+    
+        return { about, experiences, education };
+      }
+    
+      const mod = {
+        buildProfileUrl,
+        fetchProfileJson,
+        parseProfile
+      };
+    
+      if (typeof module!=='undefined' && module.exports) module.exports = mod;
+      const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+      root.LinkedInScraperModules = root.LinkedInScraperModules || {};
+      root.LinkedInScraperModules.profile = mod;
+    })();
+
 
     // LinkedIn extractors
     ;
@@ -538,6 +772,17 @@
         const buildLinkedInSearchUrl = typeof __buildUrl__.buildLinkedInSearchUrl === 'function' ? __buildUrl__.buildLinkedInSearchUrl : function(){ return ''; };
         const extractKeywordFromPage = typeof __buildUrl__.extractKeywordFromPage === 'function' ? __buildUrl__.extractKeywordFromPage : function(){ return ''; };
         const fetchVoyagerJson = typeof __buildUrl__.fetchVoyagerJson === 'function' ? __buildUrl__.fetchVoyagerJson : null;
+    
+        // Resolve profile lib
+        function getProfileModule(){
+            if (typeof module!=='undefined' && module.exports) {
+                try { return require('./lib/profile'); } catch(_) { /* ignore */ }
+            }
+            const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+            const mods = root.LinkedInScraperModules || {};
+            return mods.profile || {};
+        }
+        const __profile__ = getProfileModule();
     
         function getCsrfToken() {
             const cookies = document.cookie.split(';');
@@ -674,10 +919,50 @@
                             const key = person.profileUrl;
                             if (!key || this.seen.has(key)) continue;
                             this.seen.add(key);
-                            this.people.push(person);
-                            if (this.ui) {
-                                this.ui.addRow(person);
+                            // --- Enrich with profile (About/Experience/Education) when urnCode present
+                            if (person.urnCode && __profile__ && typeof __profile__.fetchProfileJson==='function' && typeof __profile__.parseProfile==='function') {
+                                let attempts = 0;
+                                while (attempts < 2) {
+                                    try {
+                                        const { included } = await __profile__.fetchProfileJson(person.urnCode, null);
+                                        const parsed = __profile__.parseProfile(included || []);
+                                        // About
+                                        if (parsed.about) person.about = parsed.about;
+                                        // Experience (flatten first 3)
+                                        const exp = Array.isArray(parsed.experiences) ? parsed.experiences.slice(0,3) : [];
+                                        for (let i=0; i<3; i++){
+                                            const e = exp[i] || {};
+                                            person[`exp${i+1}_company`] = e.companyName || '';
+                                            person[`exp${i+1}_position`] = e.positionTitle || '';
+                                            person[`exp${i+1}_duration`] = e.duration || '';
+                                            person[`exp${i+1}_position_duration`] = e.positionDuration || '';
+                                            person[`exp${i+1}_description`] = e.jobDescription || '';
+                                        }
+                                        // Education (flatten first 3)
+                                        const edu = Array.isArray(parsed.education) ? parsed.education.slice(0,3) : [];
+                                        for (let i=0; i<3; i++){
+                                            const d = edu[i] || {};
+                                            person[`edu${i+1}_institution`] = d.institutionName || '';
+                                            person[`edu${i+1}_degree`] = d.degree || '';
+                                            person[`edu${i+1}_grade`] = d.grade || '';
+                                            person[`edu${i+1}_description`] = d.educationDescription || '';
+                                        }
+                                        break; // success
+                                    } catch (e) {
+                                        if (e && e.message === 'RATE_LIMIT') {
+                                            await this.handleRateLimit();
+                                            attempts++;
+                                            continue;
+                                        }
+                                        // Non-rate-limit errors: log and continue without enrichment
+                                        console.warn('Profile enrichment failed:', e);
+                                        break;
+                                    }
+                                }
                             }
+                            // Now add to model/UI
+                            this.people.push(person);
+                            if (this.ui) this.ui.addRow(person);
                             addedCount++;
                         }
                         const hasResults = addedCount > 0;
