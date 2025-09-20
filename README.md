@@ -1,219 +1,112 @@
-# LinkedIn Profile Scraper
+# LinkedIn Profile Scraper (lite)
 
-A LinkedIn profile scraper that extracts data from LinkedIn **people search** results using the Voyager API. Works **directly in your browser console** (no extensions) or as a **Tampermonkey userscript** (convenience for frequent use).
+Browser-native LinkedIn people-search scraper that runs as a Tampermonkey userscript or a one-off console snippet. It collects profile cards from LinkedIn's Voyager API, renders a live overlay, and exports the results to CSV or HTML—everything stays in your browser session.
 
-> ⚠️ **Important:** LinkedIn changes their UI/endpoints regularly. The scraper may break without notice. If something stops working, check for updates or open an issue/PR.
->
-> 📝 **Scope:** Scrapes **search results only** (not full profiles). Contributions for advanced features are welcome!
+> ⚠️ LinkedIn tweaks their UI and Voyager endpoints frequently. Expect to refresh to the latest build when things break.
+> 
+> 📝 Scope: people-search result cards only. Full profile crawling is out of scope.
 
----
+## Highlights
 
-## Features
+- Runs from the Tampermonkey menu (`🔍 Start LinkedIn Scraper`) or the floating `Scrape Profiles` button that appears only on `/search/results/people` routes
+- Route guard + History API + `locationchange` listener keep the UI in sync as you navigate search tabs
+- Handles rate limits with jittered delays and bounded retries; stops after three empty result pages
+- Real-time overlay shows progress, captured rows, export controls, and inline error toasts
+- Clean exports: UTF-8 BOM CSV and styled HTML tables saved via in-browser Blobs with timestamped filenames
+- No server component, no external dependencies—your LinkedIn session (cookies + optional CSRF token) stays in the browser
 
-- 🚀 **Fast & Efficient:** Scrapes hundreds of profiles in minutes  
-- 🎯 **Smart Deduplication:** Automatically removes duplicates  
-- ⏸️ **Rate Limit Handling:** Retries with jittered delays  
-- 📊 **Exports:** CSV and HTML  
-- 🎨 **Real-time UI:** On-page overlay with progress & controls  
-- 🔒 **No external deps:** Runs entirely in your browser
+## Requirements
 
----
+- Logged-in LinkedIn session in a desktop browser (Chromium, Firefox, Edge, or Safari)
+- For Tampermonkey mode: the [Tampermonkey extension](https://www.tampermonkey.net/) installed
+- For console mode: permission to run pasted JavaScript in DevTools
 
-## 📸 Screenshots
+## Install & Run
 
-### Export Interface
-![Export UI](image-for-readme/exports-UI.png)  
-*Real-time scraping interface with export options*
+### Option A — Tampermonkey overlay (best for repeat runs)
 
-### HTML Results
-![HTML Results](image-for-readme/HTML-results.png)  
-*Clean, formatted HTML export with all profile data*
+1. Install Tampermonkey (Chrome, Firefox, Edge all supported).
+2. Open the one-click installer:
+   - Raw userscript: `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js`
+   - Friendly mirror: [`install.html`](https://withlinda.github.io/LinkedIn-profile-scraper-lite/install.html)
+3. Visit a LinkedIn people-search page and launch the scraper using either the floating **Scrape Profiles** button or the Tampermonkey menu command **🔍 Start LinkedIn Scraper**.
 
-### The script installed through Tampermonkey has a button labeled “Scrape profiles”
-![tampermonkey-button](https://github.com/user-attachments/assets/dea76134-b425-4833-8f52-23f5d7131542)
+### Option B — One-off console run (no extensions)
 
----
+1. Navigate to a people-search URL, e.g. `https://www.linkedin.com/search/results/people/?keywords=product%20designer`.
+2. Open DevTools → **Console**.
+3. Fetch and paste the console build from `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/console.js`, then press Enter.
+4. Enter the target number of profiles (default 300) and let the overlay drive the rest.
 
-## 🚀 Quick Start
+## Using the scraper
 
-### Method 1: Browser Console (Recommended) ✅
+- Guard: the script verifies you are on `/search/results/people` before it runs.
+- Prompt: choose how many profiles to collect; pagination is handled automatically in batches of 10.
+- Run loop: the scraper builds Voyager GraphQL URLs with queryId `voyagerSearchDashClusters.15c671c3162c043443995439a3d3b6dd`, injects required headers (`x-restli-protocol-version`, optional `csrf-token`), and keeps requesting until the target is met or three consecutive empty pages occur.
+- UI overlay: shows counts, progress bar, table preview, and inline error toasts for rate limits or missing tokens. You can dismiss it with the close icon.
+- Completion: once the run stops, the export buttons activate so you can download CSV or HTML immediately.
 
-**No extensions required.** Most reliable path.
+## Data captured
 
-#### How-to Video
+| Field       | Source / Notes |
+| ----------- | -------------- |
+| `name`      | `record.image.accessibilityText` (trimmed) |
+| `profileUrl`| Normalized with `sanitizeProfileUrl` to `/in/{slug}` format |
+| `headline`  | `record.primarySubtitle.text` |
+| `location`  | `record.secondarySubtitle.text` |
+| `current`   | Summary text with `Current:` prefix removed |
+| `followers` | Parsed with suffix-aware `parseFollowers` (`1.5K`, `2M`, etc.) |
+| `urnCode`   | Extracted via `extractMiniProfileUrn` |
 
-Short walkthrough: copy → paste → run in Chrome DevTools Console
+Duplicates are dropped based on `profileUrl`, so each row is unique.
 
-https://github.com/user-attachments/assets/3cb4f3ad-996a-472f-9249-26922f9aac69
+## Export formats
 
+- **CSV**: UTF-8 with BOM, escaped cells, filename `linkedin_profiles_YYYY-MM-DD.csv`.
+- **HTML**: stand-alone table with lightweight styling for printing or copy/paste.
 
-#### Steps
+Both exports are generated entirely in-browser using `Blob` URLs—no data leaves your machine.
 
-1. **Open LinkedIn people search**  
-   Go to a people search results page, e.g.:  
-   `https://www.linkedin.com/search/results/people/?keywords=software%20engineer`
+## Under the hood
 
-2. **Open DevTools → Console**  
-   Press `F12` or Right-click → **Inspect** → **Console**
+- Core engine: the `LinkedInScraper` class orchestrates keyword detection, pagination, deduplication, and rate limit handling (`delay(400–1100ms)` with retries up to three times).
+- Extractors: `extractPerson` composes final records using helpers from `lib/url` and `lib/parse`.
+- UI module: `ScraperUI` injects fixed overlay styles, keeps a MutationObserver alive so the floating button survives DOM refreshes, and wires export handlers.
+- Utilities: `exportToCsv` / `exportToHtml` live in `utils.js` and share column definitions from `schema/columns.js`.
+- Install artifact: `install.html` mirrors the latest userscript and documents fallback install paths.
 
-3. **Run the scraper**  
-   - Open the **raw** console script:  
-     `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/console.js`  
-   - Select all, copy, paste into the Console, press **Enter**
+The repository is intentionally small—only the userscript and install page are shipped in `build/`.
 
-4. **Configure & export**  
-   - Enter a target count (e.g., `300`)  
-   - Watch progress, then click **Export CSV** or **Export HTML**
+## Troubleshooting & limits
 
----
+- **Not on a people-search page**: ensure the URL contains `/search/results/people`.
+- **Rate limited by LinkedIn (HTTP 429)**: the script pauses with a toast message. Let it retry or rerun later.
+- **Promo / monthly limit cards**: LinkedIn may inject promo cards; when no real results are returned, the UI surfaces a warning.
+- **Empty exports**: stay logged in, loosen filters, and try a smaller target to confirm results are coming in.
 
-### Method 2: Tampermonkey (Alternative for frequent use) 🐒
+Operational notes: LinkedIn returns ~10 profiles per request, CSLF cookies must be present, and the scraper halts after three empty batches. Large pulls (>500) can take several minutes.
 
-#### How-to Video
-
-
-https://github.com/user-attachments/assets/423ae900-c92a-48ec-8f98-6db2e5df6a8b
-
-
-#### Steps
-First, install Tampermonkey:  
-[Chrome](https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo) ·
-[Firefox](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/) ·
-[Edge](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd)
-
-**One-click install**
-
-<a href="https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js">
-  <img src="https://img.shields.io/badge/Install-Tampermonkey_Script-green?style=for-the-badge&logo=tampermonkey" alt="Install Tampermonkey Script">
-</a>
-
-If clicking doesn’t open an install dialog, install Tampermonkey first, then click again.  
-Prefer a friendly page? See the [Installation Page](https://withlinda.github.io/LinkedIn-profile-scraper-lite/install.html).
-
-**Other install options**
-- **Import from URL:** Tampermonkey → *Dashboard* → *Utilities* → *Import from URL* → paste:  
-  `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js`
-- **Manual:** Create a new script → copy the script from:  
-  [`build/linkedin-scraper.user.js`](https://github.com/withLinda/LinkedIn-profile-scraper-lite/blob/main/build/linkedin-scraper.user.js) → paste & Save
-
-Once installed, open LinkedIn people search. Use the **🔍 Scrape Profiles** button (top-right) or the Tampermonkey menu.
-
----
-
-## Building from Source
+## Development
 
 ```bash
-# Clone/download this repository, ensure Node.js is installed
-cd linkedin-scraper
-npm run build   # builds console + userscript into /build
+npm install # (only needed if you plan to modify scripts)
+npm run build
 ```
 
-Build outputs:
+Build outputs land in `build/`:
+- `build/console.js` — pasteable DevTools version
+- `build/linkedin-scraper.user.js` — Tampermonkey package
 
-* `build/console.js` — paste into DevTools Console
-* `build/linkedin-scraper.user.js` — Tampermonkey userscript
+The build also publishes `LinkedInScraper`, `LinkedInScraperCore`, and `ScraperUI` globals for quick experimentation.
 
----
+## Privacy, ethics, and terms
 
-## How It Works
+- Scrapes only what LinkedIn exposes in search results while you are logged in.
+- Runs locally; nothing is transmitted to external servers by this project.
+- You are responsible for complying with LinkedIn's Terms of Service and local laws.
 
-1. **Voyager API:** Fetches people search results
-2. **Pagination:** \~10 profiles per batch
-3. **Rate limiting:** 400–1100ms random delays + up to 3 retries
-4. **Deduping:** Based on profile URL
-5. **Export:** CSV (Excel/Sheets) and HTML
-
-### Extracted Data
-
-Name · Profile URL · Headline · Location · Current & Past Companies · Followers (if available)
-
-### Export Formats
-
-**CSV:** UTF-8 with BOM; properly escaped
-**HTML:** Responsive table with links; print-friendly
-
----
-
-## Troubleshooting
-
-**“Not on LinkedIn search page”**
-Use a people search URL like:
-`https://www.linkedin.com/search/results/people/?keywords=...`
-
-**“No CSRF token found”**
-Usually safe to ignore; the script continues.
-
-**“Rate limited”**
-The script waits and retries. If it persists, pause a few minutes.
-
-**No results**
-Broaden your query, confirm you’re logged in, and that search shows results.
-
----
-
-## Best Practices
-
-1. Start with **10–20 profiles** to validate
-2. Don’t run multiple instances simultaneously
-3. Large runs (500+) take time—be patient
-4. Export immediately after completion
-5. Use LinkedIn filters to focus results
-
----
-
-## Technical Details
-
-* Pure JavaScript (no external libraries)
-* Voyager GraphQL endpoints
-* 400–1100ms randomized intervals
-* \~10 results per page
-* 3 retries on rate limiting
-
----
-
-## Privacy & Ethics
-
-* Scrapes publicly visible information only
-* Runs locally in your browser (no data sent to external servers by this tool)
-* Requires an active LinkedIn session
-* Use responsibly and follow LinkedIn’s Terms of Service
-
----
-
-## Limitations
-
-* Requires active LinkedIn login
-* Limited to search result fields (not full profiles)
-* May break when LinkedIn updates UI/APIs
-* Rate limiting can slow large jobs
-
----
-
-## Browser Compatibility
-
-* ✅ Chrome/Chromium (recommended)
-* ✅ Firefox · ✅ Edge · ✅ Safari
-* ⚠️ Brave (may require Shields adjustments)
-
----
-
-## Support & Contributing
-
-1. Check **Troubleshooting** above
-2. Try both methods (Console vs Tampermonkey)
-3. Include errors from DevTools Console when filing issues
-
-Issues & PRs: use the repository’s **Issues** and **Pull Requests** tabs.
-
----
-
-## License & Disclaimer
+## License
 
 MIT License — use at your own discretion.
 
-This tool is for educational purposes. You are responsible for complying with LinkedIn’s Terms of Service and applicable laws. The authors are not responsible for misuse or any consequences of using this tool.
-
----
-
-**Last Updated:** September 2025
-**Version:** 1.0.0
+_Last updated: September 2025_

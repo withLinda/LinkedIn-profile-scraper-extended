@@ -1,0 +1,35 @@
+# ~/.codex/config.toml
+
+model = "gpt-5"
+approval_policy = "on-request"        # ask before risky actions
+sandbox_mode = "workspace-write"      # safe local sandbox
+model_reasoning_effort = "high"
+preferred_auth_method = "chatgpt"     # or "apikey"
+
+[tools]
+web_search = true
+
+[shell_environment_policy]
+inherit = "core"
+exclude = ["*KEY*","*TOKEN*","*SECRET*"]
+set = { CI = "1" }
+
+[history]
+persistence = "save-all"
+
+# Example MCP tool (optional)
+# [mcp_servers.linear]
+# command = "npx"
+# args = ["-y","@linear/sdk-mcp"]
+
+# Example provider overrides (optional)
+# [model_providers.azure]
+# name = "Azure"
+# base_url = "https://YOUR_PROJECT.openai.azure.com/openai"
+# wire_api = "chat"
+# query_params = { api-version = "2025-04-01-preview" }
+
+# Example profile you can switch to with: codex --profile zdr
+[profiles.zdr]
+disable_response_storage = true
+approval_policy = "on-failure"

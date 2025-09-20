@@ -908,7 +908,7 @@
         
         const BOM = '\uFEFF';
         
-        const headers = ['Name', 'Profile URL', 'Headline', 'Location', 'Current Companies', 'Past Companies', 'Followers'];
+        const headers = ['Name', 'Profile URL', 'Headline', 'Location', 'Current Companies', 'Past Companies', 'Followers', 'URN Code'];
         
         const csvContent = BOM + headers.map(escapeCSV).join(',') + '\n' + 
             people.map(person => {
@@ -919,7 +919,8 @@
                     person.location || '',
                     (person.summaryCurrent || []).join('; '),
                     (person.summaryPast || []).join('; '),
-                    person.followers || ''
+                    person.followers || '',
+                    person.URNcode || ''
                 ].map(escapeCSV).join(',');
             }).join('\n');
         
@@ -1062,6 +1063,7 @@
                     <th>Current Companies</th>
                     <th>Past Companies</th>
                     <th>Followers</th>
+                    <th>URN Code</th>
                 </tr>
             </thead>
             <tbody>
@@ -1090,6 +1092,12 @@
                     <td class="followers">
                         ${person.followers ? 
                             person.followers.toLocaleString() :
+                            '<span class="no-data">-</span>'
+                        }
+                    </td>
+                    <td>
+                        ${person.URNcode ? 
+                            escapeHtml(person.URNcode) :
                             '<span class="no-data">-</span>'
                         }
                     </td>

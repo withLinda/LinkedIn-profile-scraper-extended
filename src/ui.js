@@ -1,6 +1,72 @@
 (function() {
     'use strict';
 
+
+    function getUtilsModule() {
+        if (typeof module !== 'undefined' && module.exports) {
+            try {
+                return require('./utils');
+            } catch (error) {
+                // Ignore resolve errors when running in Node
+                return {};
+            }
+        }
+
+        const root = typeof globalThis !== 'undefined'
+            ? globalThis
+            : (typeof window !== 'undefined' ? window : {});
+
+        const modules = root.LinkedInScraperModules || {};
+        return modules.utils || {};
+    }
+
+    function getThemeModule() {
+        if (typeof module !== 'undefined' && module.exports) {
+            try { return require('./theme'); } catch (e) { /* ignore */ }
+        }
+        const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+        const modules = root.LinkedInScraperModules || {};
+        return modules.theme || {};
+    }
+
+    function getUiStylesModule() {
+        if (typeof module !== 'undefined' && module.exports) {
+            try { return require('./ui/styles'); } catch (e) { /* ignore */ }
+        }
+        const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+        const modules = root.LinkedInScraperModules || {};
+        return modules.uiStyles || {};
+    }
+
+    function getExportHandler(utilsModule, name) {
+        if (utilsModule && typeof utilsModule[name] === 'function') {
+            return utilsModule[name];
+        }
+
+        const root = typeof globalThis !== 'undefined'
+            ? globalThis
+            : (typeof window !== 'undefined' ? window : {});
+
+        const fallback = root[name];
+        return typeof fallback === 'function' ? fallback : null;
+    }
+
+    function resolvePersonColumns(utilsModule) {
+        const root = typeof globalThis !== 'undefined'
+            ? globalThis
+            : (typeof window !== 'undefined' ? window : {});
+        const mods = root.LinkedInScraperModules || {};
+        const schema = mods.schema || {};
+        const columns = Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : null;
+        if (columns && columns.length) return columns;
+        // Last-resort fallback to a minimal set if schema not present
+        return [{ key:'name',label:'Name'},{ key:'profileUrl',label:'Profile URL'}];
+    }
+
+    const utilsModule = getUtilsModule();
+    const themeModule = getThemeModule();
+    const uiStylesModule = getUiStylesModule();
+
     class ScraperUI {
         constructor() {
             this.container = null;
@@ -12,14 +78,25 @@
             this.exportButtons = null;
             this.errorMessage = null;
             this.people = [];
+            this.columns = resolvePersonColumns(utilsModule);
+        }
+
+        resolveHandlers() {
+            const utilsModule = getUtilsModule();
+            return {
+                csv: getExportHandler(utilsModule, 'exportToCsv'),
+                html: getExportHandler(utilsModule, 'exportToHtml')
+            };
         }
         
         init() {
             if (document.getElementById('linkedin-scraper-ui')) {
                 this.destroy();
             }
-            
-            this.createStyles();
+            // Inject base CSS (structure/layout), then apply theme tokens
+            if (uiStylesModule && typeof uiStylesModule.injectUiBaseStyles === 'function') {
+                uiStylesModule.injectUiBaseStyles();
+            }
             this.createContainer();
             this.createHeader();
             this.createProgressSection();
@@ -27,206 +104,14 @@
             this.createExportSection();
             this.attachEventListeners();
             
+            if (themeModule && typeof themeModule.applyTheme === 'function') {
+                themeModule.applyTheme(this.container);
+            }
+
             document.body.appendChild(this.container);
         }
         
-        createStyles() {
-            const style = document.createElement('style');
-            style.textContent = `
-                #linkedin-scraper-ui {
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    width: 500px;
-                    max-height: 80vh;
-                    background: rgba(26, 32, 44, 0.95);
-                    border: 1px solid #4a5568;
-                    border-radius: 8px;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-                    z-index: 9999;
-                    font-family: system-ui, -apple-system, sans-serif;
-                    color: #e2e8f0;
-                    display: flex;
-                    flex-direction: column;
-                }
-                
-                #linkedin-scraper-ui * {
-                    box-sizing: border-box;
-                }
-                
-                .scraper-header {
-                    padding: 16px;
-                    border-bottom: 1px solid #4a5568;
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                }
-                
-                .scraper-title {
-                    font-size: 18px;
-                    font-weight: 600;
-                    color: #63b3ed;
-                }
-                
-                .scraper-close {
-                    background: transparent;
-                    border: none;
-                    color: #a0aec0;
-                    font-size: 24px;
-                    cursor: pointer;
-                    padding: 0;
-                    width: 30px;
-                    height: 30px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                }
-                
-                .scraper-close:hover {
-                    color: #f56565;
-                }
-                
-                .scraper-progress {
-                    padding: 16px;
-                    border-bottom: 1px solid #4a5568;
-                }
-                
-                .progress-bar-container {
-                    background: #2d3748;
-                    border-radius: 4px;
-                    height: 8px;
-                    margin-bottom: 8px;
-                    overflow: hidden;
-                }
-                
-                .progress-bar {
-                    background: #48bb78;
-                    height: 100%;
-                    width: 0%;
-                    transition: width 0.3s ease;
-                }
-                
-                .progress-text {
-                    font-size: 14px;
-                    color: #a0aec0;
-                    text-align: center;
-                }
-                
-                .results-counter {
-                    padding: 8px 16px;
-                    background: #2d3748;
-                    font-size: 14px;
-                    font-weight: 500;
-                }
-                
-                .results-table-container {
-                    max-height: 400px;
-                    overflow-y: auto;
-                    flex: 1;
-                }
-                
-                .results-table {
-                    width: 100%;
-                    font-size: 13px;
-                }
-                
-                .results-table th {
-                    background: #2d3748;
-                    padding: 8px;
-                    text-align: left;
-                    font-weight: 600;
-                    position: sticky;
-                    top: 0;
-                    z-index: 1;
-                }
-                
-                .results-table td {
-                    padding: 8px;
-                    border-bottom: 1px solid #2d3748;
-                    max-width: 150px;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                
-                .results-table tr:hover {
-                    background: rgba(56, 178, 172, 0.1);
-                }
-                
-                .export-section {
-                    padding: 16px;
-                    border-top: 1px solid #4a5568;
-                    display: flex;
-                    gap: 8px;
-                    justify-content: center;
-                }
-                
-                .export-button {
-                    background: #3182ce;
-                    color: white;
-                    padding: 8px 16px;
-                    border-radius: 4px;
-                    border: none;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 500;
-                    transition: background 0.2s;
-                }
-                
-                .export-button:hover:not(:disabled) {
-                    background: #2c5282;
-                }
-                
-                .export-button:disabled {
-                    background: #4a5568;
-                    cursor: not-allowed;
-                    opacity: 0.6;
-                }
-                
-                .error-message {
-                    position: absolute;
-                    bottom: 70px;
-                    left: 16px;
-                    right: 16px;
-                    background: #f56565;
-                    color: white;
-                    padding: 8px 12px;
-                    border-radius: 4px;
-                    font-size: 13px;
-                    display: none;
-                    animation: slideUp 0.3s ease;
-                }
-                
-                @keyframes slideUp {
-                    from {
-                        transform: translateY(20px);
-                        opacity: 0;
-                    }
-                    to {
-                        transform: translateY(0);
-                        opacity: 1;
-                    }
-                }
-                
-                .results-table-container::-webkit-scrollbar {
-                    width: 8px;
-                }
-                
-                .results-table-container::-webkit-scrollbar-track {
-                    background: #2d3748;
-                }
-                
-                .results-table-container::-webkit-scrollbar-thumb {
-                    background: #4a5568;
-                    border-radius: 4px;
-                }
-                
-                .results-table-container::-webkit-scrollbar-thumb:hover {
-                    background: #718096;
-                }
-            `;
-            document.head.appendChild(style);
-        }
+        // createStyles() removed; UI now uses ui/styles.js + theme for CSS
         
         createContainer() {
             this.container = document.createElement('div');
@@ -285,14 +170,8 @@
             this.resultsTable.className = 'results-table';
             
             const thead = document.createElement('thead');
-            thead.innerHTML = `
-                <tr>
-                    <th>Name</th>
-                    <th>Headline</th>
-                    <th>Location</th>
-                    <th>Followers</th>
-                </tr>
-            `;
+            const headerCells = this.columns.map(column => `<th>${column.label}</th>`).join('');
+            thead.innerHTML = `<tr>${headerCells}</tr>`;
             
             this.resultsBody = document.createElement('tbody');
             
@@ -308,22 +187,24 @@
             
             const csvButton = document.createElement('button');
             csvButton.className = 'export-button';
+            csvButton.dataset.exportType = 'csv';
             csvButton.textContent = 'Export CSV';
             csvButton.disabled = true;
             csvButton.onclick = () => {
-                if (typeof exportToCsv === 'function') {
-                    exportToCsv(this.people);
-                }
+                const { csv } = this.resolveHandlers();
+                if (csv) { csv(this.people); }
+                else { this.showError('Export to CSV is not available yet.'); }
             };
             
             const htmlButton = document.createElement('button');
             htmlButton.className = 'export-button';
+            htmlButton.dataset.exportType = 'html';
             htmlButton.textContent = 'Export HTML';
             htmlButton.disabled = true;
             htmlButton.onclick = () => {
-                if (typeof exportToHtml === 'function') {
-                    exportToHtml(this.people);
-                }
+                const { html } = this.resolveHandlers();
+                if (html) { html(this.people); }
+                else { this.showError('Export to HTML is not available yet.'); }
             };
             
             exportSection.appendChild(csvButton);
@@ -349,38 +230,69 @@
             this.progressText.textContent = `${current} of ${total} profiles`;
             this.resultsCounter.textContent = `Found: ${current} unique profiles`;
         }
-        
+
+        setCellEmpty(cell) {
+            cell.textContent = '-';
+            cell.classList.add('empty');
+        }
+
+        createCellForColumn(column, person) {
+            const cell = document.createElement('td');
+            const value = person ? person[column.key] : null;
+
+            if (column.key === 'profileUrl') {
+                if (value) {
+                    const link = document.createElement('a');
+                    link.href = value;
+                    link.textContent = value;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.className = 'profile-link';
+                    cell.appendChild(link);
+                    cell.title = value;
+                } else {
+                    this.setCellEmpty(cell);
+                }
+                return cell;
+            }
+
+            if (column.key === 'followers') {
+                if (typeof value === 'string' && value.trim()) {
+                    cell.textContent = value;                // e.g., "30K followers"
+                    cell.classList.add('followers');
+                } else if (typeof value === 'number' && Number.isFinite(value)) {
+                    cell.textContent = value.toLocaleString();
+                    cell.classList.add('numeric');
+                } else {
+                    this.setCellEmpty(cell);
+                }
+                return cell;
+            }
+
+            if (value == null || String(value).trim() === '') {
+                this.setCellEmpty(cell);
+                return cell;
+            }
+
+            const textValue = String(value).trim();
+            cell.textContent = textValue;
+            cell.title = textValue;
+            return cell;
+        }
+
         addRow(person) {
             this.people.push(person);
-            
+
             const row = document.createElement('tr');
-            
-            const nameCell = document.createElement('td');
-            nameCell.textContent = person.name || '-';
-            nameCell.title = person.name || '';
-            
-            const headlineCell = document.createElement('td');
-            headlineCell.textContent = person.headline || '-';
-            headlineCell.title = person.headline || '';
-            
-            const locationCell = document.createElement('td');
-            locationCell.textContent = person.location || '-';
-            locationCell.title = person.location || '';
-            
-            const followersCell = document.createElement('td');
-            followersCell.textContent = person.followers ? 
-                person.followers.toLocaleString() : '-';
-            
-            row.appendChild(nameCell);
-            row.appendChild(headlineCell);
-            row.appendChild(locationCell);
-            row.appendChild(followersCell);
-            
+            this.columns.forEach(column => {
+                const cell = this.createCellForColumn(column, person);
+                row.appendChild(cell);
+            });
+
             this.resultsBody.appendChild(row);
-            
             this.resultsCounter.textContent = `Found: ${this.people.length} unique profiles`;
         }
-        
+
         showError(message) {
             this.errorMessage.textContent = message;
             this.errorMessage.style.display = 'block';
@@ -391,11 +303,10 @@
         }
         
         enableExport(people) {
-            if (people) {
-                this.people = people;
-            }
+            if (people) this.people = people;
+            const { csv, html } = this.resolveHandlers();
             this.exportButtons.forEach(btn => {
-                btn.disabled = false;
+                btn.disabled = btn.dataset.exportType === 'csv' ? !csv : !html;
             });
         }
         
@@ -403,11 +314,7 @@
             if (this.container && this.container.parentNode) {
                 this.container.parentNode.removeChild(this.container);
             }
-            
-            const style = document.querySelector('style');
-            if (style && style.textContent.includes('#linkedin-scraper-ui')) {
-                style.parentNode.removeChild(style);
-            }
+            // Keep shared base/theme styles in DOM; they are idempotent and used across sessions.
         }
     }
 

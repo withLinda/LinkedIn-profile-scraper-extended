@@ -1,14 +1,26 @@
 const fs = require('fs');
 const path = require('path');
 
+// NOTE: keep concatenation order: tokens -> theme -> libs -> core -> utils -> styles -> ui
+
 function readFile(filePath) {
     return fs.readFileSync(path.join(__dirname, '..', filePath), 'utf8');
+}
+
+function readModule(filePath) {
+    return readFile(filePath).trim();
 }
 
 function writeFile(filePath, content) {
     const fullPath = path.join(__dirname, '..', filePath);
     fs.writeFileSync(fullPath, content, 'utf8');
     console.log(`✅ Created: ${filePath}`);
+}
+
+function injectModule(code, indent = '    ') {
+    const trimmed = code.trim();
+    const lines = trimmed.split('\n').map(line => `${indent}${line}`);
+    return `\n${indent};\n${lines.join('\n')}\n`;
 }
 
 function minifyBasic(code) {
@@ -24,9 +36,19 @@ function minifyBasic(code) {
 function buildConsoleVersion() {
     console.log('Building console version...');
     
-    const core = readFile('src/core.js');
-    const ui = readFile('src/ui.js');
-    const utils = readFile('src/utils.js');
+    const schemaColumns = readModule('src/schema/columns.js');
+    const themeTokens = readModule('src/theme/tokens.js');
+    const themeEngine = readModule('src/theme/index.js');
+    const urlLib = readModule('src/lib/url.js');
+    const buildUrlLib = readModule('src/lib/buildUrl.js');
+    const extractor = readModule('src/extractors/linkedin.js');
+    const core = readModule('src/core.js');
+    const exportShared = readModule('src/export/shared.js');
+    const exportCsv = readModule('src/export/csv.js');
+    const exportHtml = readModule('src/export/html.js');
+    const utils = readModule('src/utils.js');
+    const uiStyles = readModule('src/ui/styles.js');
+    const ui = readModule('src/ui.js');
     
     const consoleVersion = `/**
  * LinkedIn Profile Scraper - Console Version
@@ -68,15 +90,30 @@ function buildConsoleVersion() {
         return;
     }
     
-    // Core functionality
-    ${core.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-    
-    // UI components
-    ${ui.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-    
-    // Export utilities
-    ${utils.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-    
+    // Schema definition${injectModule(schemaColumns)}
+
+    // Theme tokens${injectModule(themeTokens)}
+
+    // Theme engine${injectModule(themeEngine)}
+
+    // URL helpers${injectModule(urlLib)}
+
+    // Build URL${injectModule(buildUrlLib)}
+
+    // LinkedIn extractors${injectModule(extractor)}
+
+    // Core functionality${injectModule(core)}
+
+    // Export shared${injectModule(exportShared)}
+    // Export CSV${injectModule(exportCsv)}
+    // Export HTML${injectModule(exportHtml)}
+
+    // Export utilities${injectModule(utils)}
+
+    // UI base styles (token-agnostic)${injectModule(uiStyles)}
+
+    // UI components${injectModule(ui)}
+
     // Initialize and run
     const targetCount = prompt('How many profiles to scrape? (Default: 300)', '300');
     if (!targetCount) {
@@ -107,15 +144,25 @@ function buildTampermonkeyVersion() {
     const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
     const version = pkg.version;
     
-    const core = readFile('src/core.js');
-    const ui = readFile('src/ui.js');
-    const utils = readFile('src/utils.js');
+    const schemaColumns = readModule('src/schema/columns.js');
+    const themeTokens = readModule('src/theme/tokens.js');
+    const themeEngine = readModule('src/theme/index.js');
+    const urlLib = readModule('src/lib/url.js');
+    const buildUrlLib = readModule('src/lib/buildUrl.js');
+    const extractor = readModule('src/extractors/linkedin.js');
+    const core = readModule('src/core.js');
+    const exportShared = readModule('src/export/shared.js');
+    const exportCsv = readModule('src/export/csv.js');
+    const exportHtml = readModule('src/export/html.js');
+    const utils = readModule('src/utils.js');
+    const uiStyles = readModule('src/ui/styles.js');
+    const ui = readModule('src/ui.js');
     
     const tampermonkeyScript = `// ==UserScript==
 // @name         LinkedIn Profile Scraper
 // @namespace    https://github.com/withLinda/LinkedIn-profile-scraper-lite
 // @version      ${version}
-// @description  Scrape LinkedIn profile data from search results
+// @description  Scrape LinkedIn profile data; modular exporters & buildUrl refactor
 // @author       LinkedIn Scraper
 // @match        https://*.linkedin.com/search/results/people*
 // @match        https://*.linkedin.com/search/results/all*
@@ -140,15 +187,30 @@ function buildTampermonkeyVersion() {
 (function() {
     'use strict';
     
-    // Core functionality
-    ${core.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-    
-    // UI components
-    ${ui.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-    
-    // Export utilities
-    ${utils.replace(/\(function\(\) \{|\}\)\(\);?/g, '').trim()}
-    
+    // Schema definition${injectModule(schemaColumns)}
+
+    // Theme tokens${injectModule(themeTokens)}
+
+    // Theme engine${injectModule(themeEngine)}
+
+    // URL helpers${injectModule(urlLib)}
+
+    // Build URL${injectModule(buildUrlLib)}
+
+    // LinkedIn extractors${injectModule(extractor)}
+
+    // Core functionality${injectModule(core)}
+
+    // Export shared${injectModule(exportShared)}
+    // Export CSV${injectModule(exportCsv)}
+    // Export HTML${injectModule(exportHtml)}
+
+    // Export utilities${injectModule(utils)}
+
+    // UI base styles (token-agnostic)${injectModule(uiStyles)}
+
+    // UI components${injectModule(ui)}
+
     // Register menu command
     if (typeof GM_registerMenuCommand !== 'undefined') {
         GM_registerMenuCommand('🔍 Start LinkedIn Scraper', startScraper);
@@ -177,8 +239,8 @@ function buildTampermonkeyVersion() {
             top: 70px;
             right: 20px;
             z-index: 9998;
-            background: #0077b5;
-            color: white;
+            background: #8DA101;
+            color: #FFFBEF;
             border: none;
             padding: 10px 20px;
             border-radius: 20px;
@@ -188,14 +250,14 @@ function buildTampermonkeyVersion() {
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             transition: all 0.3s;
         \`;
-        
+
         button.onmouseover = () => {
-            button.style.background = '#005885';
+            button.style.background = '#35A77C';
             button.style.transform = 'scale(1.05)';
         };
-        
+
         button.onmouseout = () => {
-            button.style.background = '#0077b5';
+            button.style.background = '#8DA101';
             button.style.transform = 'scale(1)';
         };
         
@@ -238,8 +300,8 @@ function buildTampermonkeyVersion() {
                 position: fixed;
                 top: 100px;
                 right: 20px;
-                background: #48bb78;
-                color: white;
+                background: #8DA101;
+                color: #FFFBEF;
                 padding: 15px 20px;
                 border-radius: 8px;
                 font-weight: 600;
