@@ -258,11 +258,87 @@
     })();
 
 
+    // Shared resolver
+    ;
+    (function(){
+      'use strict';
+    
+      function getRoot(){
+        return (typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {}));
+      }
+    
+      function getNamespace(root){
+        root.LinkedInScraperModules = root.LinkedInScraperModules || {};
+        return root.LinkedInScraperModules;
+      }
+    
+      /**
+       * resolve(requirePath, globalKey)
+       * Attempts CommonJS require first (Node/build), then falls back to
+       * LinkedInScraperModules[globalKey] in the browser.
+       */
+      function resolve(requirePath, globalKey){
+        if (typeof module!=='undefined' && module.exports){
+          try { return require(requirePath); } catch(_) {}
+        }
+        const root = getRoot();
+        const ns = getNamespace(root);
+        return ns[globalKey] || {};
+      }
+    
+      const mod = { resolve, getRoot, getNamespace };
+    
+      if (typeof module!=='undefined' && module.exports) module.exports = mod;
+      const root = getRoot();
+      getNamespace(root).modResolver = mod;
+    })();
+
+
+    // Auth
+    ;
+    (function(){
+      'use strict';
+    
+      function getCsrfToken(){
+        const cookieStr = (typeof document!=='undefined' ? document.cookie : '') || '';
+        const cookies = cookieStr.split(';');
+        for (let cookie of cookies){
+          const [name, value] = cookie.trim().split('=');
+          if (name === 'JSESSIONID'){
+            const clean = String(value||'').replace(/\"/g,'').replace(/"/g,'');
+            try { return decodeURIComponent(clean); } catch { return clean; }
+          }
+        }
+        return null;
+      }
+    
+      const mod = { getCsrfToken };
+      if (typeof module!=='undefined' && module.exports) module.exports = mod;
+      const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+      root.LinkedInScraperModules = root.LinkedInScraperModules || {};
+      root.LinkedInScraperModules.auth = mod;
+    })();
+
+
     // Build URL
     ;
     (function() {
         'use strict';
     
+        function getResolver(){
+            if (typeof module!=='undefined' && module.exports) {
+                try { return require('../shared/modResolver'); } catch(_) { return null; }
+            }
+            const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+            return (r.LinkedInScraperModules||{}).modResolver || null;
+        }
+        function getAuth(){
+            const res = getResolver();
+            if (res && res.resolve) return res.resolve('./auth','auth');
+            try { if (typeof module!=='undefined' && module.exports) return require('./auth'); } catch(_) { return {}; }
+            const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+            return (root.LinkedInScraperModules||{}).auth || {};
+        }
         function cleanValue(raw) {
             let clean = String(raw || '');
             if (clean.startsWith('[') && clean.endsWith(']')) clean = clean.slice(1, -1);
@@ -316,19 +392,6 @@
             return (searchBox && searchBox.value) ? searchBox.value : '';
         }
     
-        // NEW: local copy of CSRF token getter so this file is self-contained for requests
-        function getCsrfTokenForVoyager() {
-            const cookies = (typeof document!=='undefined' ? document.cookie : '').split(';');
-            for (let cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'JSESSIONID') {
-                    const cleanValue = String(value || '').replace(/\"/g, '');
-                    try { return decodeURIComponent(cleanValue); } catch { return cleanValue; }
-                }
-            }
-            return null;
-        }
-    
         // NEW: request builder (URL + headers) used by fetch
         function buildVoyagerRequest({ keyword = '', start = 0, count = 10 }) {
             const url = buildLinkedInSearchUrl({ keyword, start, count });
@@ -336,7 +399,7 @@
                 'x-restli-protocol-version': '2.0.0',
                 'accept': 'application/vnd.linkedin.normalized+json+2.1'
             };
-            const csrf = getCsrfTokenForVoyager();
+            const csrf = getAuth().getCsrfToken ? getAuth().getCsrfToken() : null;
             if (csrf) headers['csrf-token'] = csrf;
             return { url, headers };
         }
@@ -576,7 +639,14 @@
                     this.ui.init();
                 }
                 
-                const csrfToken = getCsrfToken();
+                const auth = (function(){
+                    if (typeof module!=='undefined' && module.exports) {
+                        try { return require('./lib/auth'); } catch(_) {}
+                    }
+                    const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+                    return (r.LinkedInScraperModules||{}).auth || {};
+                })();
+                const csrfToken = (auth && typeof auth.getCsrfToken==='function') ? auth.getCsrfToken() : null;
                 if (!csrfToken && this.ui) {
                     this.ui.showError('Warning: No CSRF token found. Continuing anyway...');
                 }
@@ -666,7 +736,6 @@
     
         if (typeof module !== 'undefined' && module.exports) {
             module.exports = {
-                getCsrfToken,
                 getExtractPersonFn,
                 extractPeopleFromResponse,
                 LinkedInScraper
@@ -674,7 +743,6 @@
         } else {
             window.LinkedInScraper = LinkedInScraper;
             window.LinkedInScraperCore = {
-                getCsrfToken,
                 getExtractPersonFn,
                 extractPeopleFromResponse
             };
@@ -688,6 +756,7 @@
     (function(){
       'use strict';
     
+      // --- Columns --------------------------------------------------------------
       function getPersonColumns() {
         try {
           if (typeof module!=='undefined' && module.exports) {
@@ -701,6 +770,7 @@
         return Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : [];
       }
     
+      // --- Value accessors ------------------------------------------------------
       function getCsvValue(person, key) {
         if (!person) return '';
         if (key === 'followers') {
@@ -736,6 +806,25 @@
         return str;
       }
     
+      // Make HTML-escape available to all exporters/UIs
+      function escapeHTML(value){
+        if (value === null || value === undefined) return '';
+        // If no DOM (Node), fallback to naive escape
+        if (typeof document === 'undefined') {
+          return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/\"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+        const div = document.createElement('div'); div.textContent = String(value);
+        return div.innerHTML;
+      }
+      // Back-compat alias: older bundles call `escapeHtml` (lowercase "H").
+      function escapeHtml(value){
+        return escapeHTML(value);
+      }
       function downloadFile(content, filename, mimeType) {
         const blob = new Blob([content], { type: mimeType });
         const url = URL.createObjectURL(blob);
@@ -752,7 +841,7 @@
       }
     
       const mod = {
-        getPersonColumns, getCsvValue, getDisplayValue, escapeCSV, downloadFile
+        getPersonColumns, getCsvValue, getDisplayValue, escapeCSV, escapeHTML, escapeHtml, downloadFile
       };
     
       if (typeof module!=='undefined' && module.exports) {
@@ -761,6 +850,11 @@
       const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
       root.LinkedInScraperModules = root.LinkedInScraperModules || {};
       root.LinkedInScraperModules.exportShared = mod;
+      // Expose a global alias for legacy callers that reference escapeHtml()
+      const g = (typeof globalThis!=='undefined') ? globalThis : (typeof window!=='undefined' ? window : {});
+      if (g && typeof g.escapeHtml !== 'function' && typeof mod.escapeHTML === 'function') {
+        g.escapeHtml = mod.escapeHTML;
+      }
     })();
 
     // Export CSV
@@ -769,15 +863,20 @@
       'use strict';
     
       function getShared() {
-        if (typeof module!=='undefined' && module.exports) {
-          try { return require('./shared'); } catch(_) { return {}; }
+        // Prefer shared resolver, then fallback to legacy paths
+        function getResolver(){
+          if (typeof module!=='undefined' && module.exports) {
+            try { return require('../shared/modResolver'); } catch(_) { return null; }
+          }
+          const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+          return (r.LinkedInScraperModules||{}).modResolver || null;
         }
+        const res = getResolver();
+        if (res && typeof res.resolve==='function') return res.resolve('../export/shared','exportShared');
+        try { if (typeof module!=='undefined' && module.exports) return require('./shared'); } catch(_) {}
         const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        const mods = root.LinkedInScraperModules || {};
-        return mods.exportShared || {};
+        return (root.LinkedInScraperModules||{}).exportShared || {};
       }
-    
-      const shared = getShared();
     
       function exportToCsv(people) {
         if (!people || people.length===0) {
@@ -793,6 +892,7 @@
         shared.downloadFile(csvContent, `linkedin_profiles_${timestamp}.csv`, 'text/csv;charset=utf-8');
       }
     
+      const shared = getShared();
       const mod = { exportToCsv };
       if (typeof module!=='undefined' && module.exports) {
         module.exports = mod;
@@ -808,32 +908,32 @@
     (function(){
       'use strict';
     
-      function getShared() {
+      function getResolver(){
         if (typeof module!=='undefined' && module.exports) {
-          try { return require('./shared'); } catch(_) { return {}; }
+          try { return require('../shared/modResolver'); } catch(_) { return null; }
         }
-        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        const mods = root.LinkedInScraperModules || {};
-        return mods.exportShared || {};
+        const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+        return (r.LinkedInScraperModules||{}).modResolver || null;
       }
-      function getThemeModule() {
-        if (typeof module!=='undefined' && module.exports) {
-          try { return require('../theme'); } catch(_) {}
-        }
+      function getShared(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../export/shared','exportShared');
+        try { if (typeof module!=='undefined' && module.exports) return require('./shared'); } catch(_) {}
         const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        const mods = root.LinkedInScraperModules || {};
-        return mods.theme || {};
+        return (root.LinkedInScraperModules||{}).exportShared || {};
       }
-      function getUiStylesModule() {
-        if (typeof module!=='undefined' && module.exports) {
-          try { return require('../ui/styles'); } catch(_) {}
-        }
+      function getTheme(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../theme','theme');
+        try { if (typeof module!=='undefined' && module.exports) return require('../theme'); } catch(_) {}
         const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        const mods = root.LinkedInScraperModules || {};
-        return mods.uiStyles || {};
+        return (root.LinkedInScraperModules||{}).theme || {};
+      }
+      function getUiStyles(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../ui/styles','uiStyles');
+        try { if (typeof module!=='undefined' && module.exports) return require('../ui/styles'); } catch(_) {}
+        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+        return (root.LinkedInScraperModules||{}).uiStyles || {};
       }
     
       const shared = getShared();
+      const themeModule = getTheme();
+      const uiStylesModule = getUiStyles();
     
       function exportToHtml(people) {
         if (!people || people.length===0) {
@@ -841,8 +941,6 @@
           return;
         }
         const columns = shared.getPersonColumns();
-        const themeModule = getThemeModule();
-        const uiStylesModule = getUiStylesModule();
         const cssVars = (themeModule && typeof themeModule.getCssVariablesCss === 'function')
           ? themeModule.getCssVariablesCss(':root', themeModule.getActiveTokens ? themeModule.getActiveTokens() : undefined)
           : '';
@@ -851,27 +949,22 @@
             .replace(/#linkedin-scraper-ui\s*\{[\s\S]*?\}/g, '')
             .replace(/#linkedin-scraper-ui\s*\*\s*\{[\s\S]*?\}/g, '');
     
-        const escapeHtml = (str) => {
-          const div = document.createElement('div');
-          div.textContent = str || '';
-          return div.innerHTML;
-        };
         const renderHtmlCell = (person, column) => {
           const value = shared.getDisplayValue(person, column.key);
           if (column.key === 'profileUrl') {
             if (!value) return '<span class="no-data">-</span>';
-            const safeUrl = escapeHtml(String(value));
+            const safeUrl = shared.escapeHTML(String(value));
             return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="profile-link">${safeUrl}</a>`;
           }
           if (column.key === 'followers') {
-            if (typeof value === 'string' && value.trim()) return escapeHtml(value);
+            if (typeof value === 'string' && value.trim()) return shared.escapeHTML(value);
             if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString();
             return '<span class="no-data">-</span>';
           }
           if (!value) return '<span class="no-data">-</span>';
-          return escapeHtml(String(value));
+          return shared.escapeHTML(String(value));
         };
-        const headerCells = columns.map(c => `<th>${escapeHtml(c.label)}</th>`).join('');
+        const headerCells = columns.map(c => `<th>${shared.escapeHTML(c.label)}</th>`).join('');
         const bodyRows = people.map(p => {
           const cells = columns.map(c => {
             const content = renderHtmlCell(p, c);
@@ -895,7 +988,7 @@
         body{ background:var(--ef-bg0); padding:20px; color:var(--ef-fg); }
         .export-scope, .export-scope *{
           font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;
-          color:var(--ef-fg);
+          color:var(--ef-blue);
           box-sizing:border-box;
         }
         .container{
@@ -939,42 +1032,29 @@
     (function() {
         'use strict';
     
-        function getThemeModule() {
-            if (typeof module !== 'undefined' && module.exports) {
-                try { return require('./theme'); } catch (e) { /* ignore */ }
+        function getResolver(){
+            if (typeof module!=='undefined' && module.exports) {
+                try { return require('./shared/modResolver'); } catch(_) { return null; }
             }
-            const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
-            const modules = root.LinkedInScraperModules || {};
-            return modules.theme || {};
+            const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+            return (r.LinkedInScraperModules||{}).modResolver || null;
         }
-    
         // Export helpers come from export/shared.js + export/{csv,html}.js
         function getExportShared() {
-            if (typeof module !== 'undefined' && module.exports) {
-                try { return require('./export/shared'); } catch (e) { /* ignore */ }
-            }
+            const res = getResolver();
+            if (res && res.resolve) return res.resolve('./export/shared','exportShared');
+            try { if (typeof module !== 'undefined' && module.exports) return require('./export/shared'); } catch (e) { /* ignore */ }
             const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
             const mods = root.LinkedInScraperModules || {};
             return mods.exportShared || {};
-        }
-    
-        function getPersonColumns() {
-            try {
-                if (typeof module !== 'undefined' && module.exports) {
-                    const schema = require('./schema/columns');
-                    if (schema && Array.isArray(schema.PERSON_COLUMNS)) return schema.PERSON_COLUMNS;
-                }
-            } catch (error) { /* ignore */ }
-            const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
-            const modules = root.LinkedInScraperModules || {};
-            const schema = modules.schema || {};
-            return Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : [];
         }
     
         // Re-export shared helpers and exporters to keep back-compat
         const shared = getExportShared();
         const downloadFile = typeof shared.downloadFile === 'function' ? shared.downloadFile : function(){};
         function getExportCsv() {
+            const res = getResolver();
+            if (res && res.resolve) return res.resolve('./export/csv','exportCsv');
             if (typeof module !== 'undefined' && module.exports) {
                 try { return require('./export/csv'); } catch (e) { return {}; }
             }
@@ -983,6 +1063,8 @@
             return mods.exportCsv || {};
         }
         function getExportHtml() {
+            const res = getResolver();
+            if (res && res.resolve) return res.resolve('./export/html','exportHtml');
             if (typeof module !== 'undefined' && module.exports) {
                 try { return require('./export/html'); } catch (e) { return {}; }
             }
@@ -992,8 +1074,12 @@
         }
     
         const utilsModule = {
-            getPersonColumns,
+            getPersonColumns: shared.getPersonColumns,
             downloadFile,
+            // Surface escapers for callers that used to import from utils
+            escapeHTML: shared.escapeHTML,
+            // Back-compat alias (older code used utils.escapeHtml)
+            escapeHtml: shared.escapeHTML,
             // Back-compat re-exports so UI keeps working
             exportToCsv: getExportCsv().exportToCsv || null,
             exportToHtml: getExportHtml().exportToHtml || null
@@ -1016,6 +1102,10 @@
             if (typeof csv === 'function') window.exportToCsv = csv;
             if (typeof html === 'function') window.exportToHtml = html;
             window.downloadFile = downloadFile;
+            // Provide a global alias for legacy bundles that call escapeHtml() directly.
+            if (!window.escapeHtml && typeof shared.escapeHTML === 'function') {
+                window.escapeHtml = shared.escapeHTML;
+            }
         }
     
     })();
@@ -1296,14 +1386,10 @@
         }
     
         function resolvePersonColumns(utilsModule) {
-            const root = typeof globalThis !== 'undefined'
-                ? globalThis
-                : (typeof window !== 'undefined' ? window : {});
-            const mods = root.LinkedInScraperModules || {};
-            const schema = mods.schema || {};
-            const columns = Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : null;
-            if (columns && columns.length) return columns;
-            // Last-resort fallback to a minimal set if schema not present
+            if (utilsModule && typeof utilsModule.getPersonColumns==='function') {
+                const cols = utilsModule.getPersonColumns();
+                if (Array.isArray(cols) && cols.length) return cols;
+            }
             return [{ key:'name',label:'Name'},{ key:'profileUrl',label:'Profile URL'}];
         }
     

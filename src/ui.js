@@ -52,14 +52,10 @@
     }
 
     function resolvePersonColumns(utilsModule) {
-        const root = typeof globalThis !== 'undefined'
-            ? globalThis
-            : (typeof window !== 'undefined' ? window : {});
-        const mods = root.LinkedInScraperModules || {};
-        const schema = mods.schema || {};
-        const columns = Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : null;
-        if (columns && columns.length) return columns;
-        // Last-resort fallback to a minimal set if schema not present
+        if (utilsModule && typeof utilsModule.getPersonColumns==='function') {
+            const cols = utilsModule.getPersonColumns();
+            if (Array.isArray(cols) && cols.length) return cols;
+        }
         return [{ key:'name',label:'Name'},{ key:'profileUrl',label:'Profile URL'}];
     }
 

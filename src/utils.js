@@ -4,42 +4,29 @@
 (function() {
     'use strict';
 
-    function getThemeModule() {
-        if (typeof module !== 'undefined' && module.exports) {
-            try { return require('./theme'); } catch (e) { /* ignore */ }
+    function getResolver(){
+        if (typeof module!=='undefined' && module.exports) {
+            try { return require('./shared/modResolver'); } catch(_) { return null; }
         }
-        const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
-        const modules = root.LinkedInScraperModules || {};
-        return modules.theme || {};
+        const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+        return (r.LinkedInScraperModules||{}).modResolver || null;
     }
-
     // Export helpers come from export/shared.js + export/{csv,html}.js
     function getExportShared() {
-        if (typeof module !== 'undefined' && module.exports) {
-            try { return require('./export/shared'); } catch (e) { /* ignore */ }
-        }
+        const res = getResolver();
+        if (res && res.resolve) return res.resolve('./export/shared','exportShared');
+        try { if (typeof module !== 'undefined' && module.exports) return require('./export/shared'); } catch (e) { /* ignore */ }
         const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
         const mods = root.LinkedInScraperModules || {};
         return mods.exportShared || {};
-    }
-
-    function getPersonColumns() {
-        try {
-            if (typeof module !== 'undefined' && module.exports) {
-                const schema = require('./schema/columns');
-                if (schema && Array.isArray(schema.PERSON_COLUMNS)) return schema.PERSON_COLUMNS;
-            }
-        } catch (error) { /* ignore */ }
-        const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
-        const modules = root.LinkedInScraperModules || {};
-        const schema = modules.schema || {};
-        return Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : [];
     }
 
     // Re-export shared helpers and exporters to keep back-compat
     const shared = getExportShared();
     const downloadFile = typeof shared.downloadFile === 'function' ? shared.downloadFile : function(){};
     function getExportCsv() {
+        const res = getResolver();
+        if (res && res.resolve) return res.resolve('./export/csv','exportCsv');
         if (typeof module !== 'undefined' && module.exports) {
             try { return require('./export/csv'); } catch (e) { return {}; }
         }
@@ -48,6 +35,8 @@
         return mods.exportCsv || {};
     }
     function getExportHtml() {
+        const res = getResolver();
+        if (res && res.resolve) return res.resolve('./export/html','exportHtml');
         if (typeof module !== 'undefined' && module.exports) {
             try { return require('./export/html'); } catch (e) { return {}; }
         }
@@ -57,8 +46,12 @@
     }
 
     const utilsModule = {
-        getPersonColumns,
+        getPersonColumns: shared.getPersonColumns,
         downloadFile,
+        // Surface escapers for callers that used to import from utils
+        escapeHTML: shared.escapeHTML,
+        // Back-compat alias (older code used utils.escapeHtml)
+        escapeHtml: shared.escapeHTML,
         // Back-compat re-exports so UI keeps working
         exportToCsv: getExportCsv().exportToCsv || null,
         exportToHtml: getExportHtml().exportToHtml || null
@@ -81,6 +74,10 @@
         if (typeof csv === 'function') window.exportToCsv = csv;
         if (typeof html === 'function') window.exportToHtml = html;
         window.downloadFile = downloadFile;
+        // Provide a global alias for legacy bundles that call escapeHtml() directly.
+        if (!window.escapeHtml && typeof shared.escapeHTML === 'function') {
+            window.escapeHtml = shared.escapeHTML;
+        }
     }
 
 })();

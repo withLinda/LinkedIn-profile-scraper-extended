@@ -108,7 +108,14 @@
                 this.ui.init();
             }
             
-            const csrfToken = getCsrfToken();
+            const auth = (function(){
+                if (typeof module!=='undefined' && module.exports) {
+                    try { return require('./lib/auth'); } catch(_) {}
+                }
+                const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+                return (r.LinkedInScraperModules||{}).auth || {};
+            })();
+            const csrfToken = (auth && typeof auth.getCsrfToken==='function') ? auth.getCsrfToken() : null;
             if (!csrfToken && this.ui) {
                 this.ui.showError('Warning: No CSRF token found. Continuing anyway...');
             }
@@ -198,7 +205,6 @@
 
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            getCsrfToken,
             getExtractPersonFn,
             extractPeopleFromResponse,
             LinkedInScraper
@@ -206,7 +212,6 @@
     } else {
         window.LinkedInScraper = LinkedInScraper;
         window.LinkedInScraperCore = {
-            getCsrfToken,
             getExtractPersonFn,
             extractPeopleFromResponse
         };

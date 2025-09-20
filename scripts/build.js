@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-// NOTE: keep concatenation order: tokens -> theme -> libs -> core -> utils -> styles -> ui
+// NOTE: keep concatenation order: tokens -> theme -> shared/modResolver -> libs(auth,url,buildUrl) -> core -> exporters/shared -> exporters -> utils -> styles -> ui
 
 function readFile(filePath) {
     return fs.readFileSync(path.join(__dirname, '..', filePath), 'utf8');
@@ -39,7 +39,9 @@ function buildConsoleVersion() {
     const schemaColumns = readModule('src/schema/columns.js');
     const themeTokens = readModule('src/theme/tokens.js');
     const themeEngine = readModule('src/theme/index.js');
+    const modResolver = readModule('src/shared/modResolver.js');
     const urlLib = readModule('src/lib/url.js');
+    const authLib = readModule('src/lib/auth.js');
     const buildUrlLib = readModule('src/lib/buildUrl.js');
     const extractor = readModule('src/extractors/linkedin.js');
     const core = readModule('src/core.js');
@@ -98,6 +100,10 @@ function buildConsoleVersion() {
 
     // URL helpers${injectModule(urlLib)}
 
+    // Shared resolver${injectModule(modResolver)}
+
+    // Auth${injectModule(authLib)}
+
     // Build URL${injectModule(buildUrlLib)}
 
     // LinkedIn extractors${injectModule(extractor)}
@@ -147,7 +153,9 @@ function buildTampermonkeyVersion() {
     const schemaColumns = readModule('src/schema/columns.js');
     const themeTokens = readModule('src/theme/tokens.js');
     const themeEngine = readModule('src/theme/index.js');
+    const modResolver = readModule('src/shared/modResolver.js');
     const urlLib = readModule('src/lib/url.js');
+    const authLib = readModule('src/lib/auth.js');
     const buildUrlLib = readModule('src/lib/buildUrl.js');
     const extractor = readModule('src/extractors/linkedin.js');
     const core = readModule('src/core.js');
@@ -194,6 +202,10 @@ function buildTampermonkeyVersion() {
     // Theme engine${injectModule(themeEngine)}
 
     // URL helpers${injectModule(urlLib)}
+
+    // Shared resolver${injectModule(modResolver)}
+
+    // Auth${injectModule(authLib)}
 
     // Build URL${injectModule(buildUrlLib)}
 

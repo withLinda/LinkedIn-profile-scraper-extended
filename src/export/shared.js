@@ -1,6 +1,7 @@
 (function(){
   'use strict';
 
+  // --- Columns --------------------------------------------------------------
   function getPersonColumns() {
     try {
       if (typeof module!=='undefined' && module.exports) {
@@ -14,6 +15,7 @@
     return Array.isArray(schema.PERSON_COLUMNS) ? schema.PERSON_COLUMNS : [];
   }
 
+  // --- Value accessors ------------------------------------------------------
   function getCsvValue(person, key) {
     if (!person) return '';
     if (key === 'followers') {
@@ -49,6 +51,25 @@
     return str;
   }
 
+  // Make HTML-escape available to all exporters/UIs
+  function escapeHTML(value){
+    if (value === null || value === undefined) return '';
+    // If no DOM (Node), fallback to naive escape
+    if (typeof document === 'undefined') {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+    const div = document.createElement('div'); div.textContent = String(value);
+    return div.innerHTML;
+  }
+  // Back-compat alias: older bundles call `escapeHtml` (lowercase "H").
+  function escapeHtml(value){
+    return escapeHTML(value);
+  }
   function downloadFile(content, filename, mimeType) {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
@@ -65,7 +86,7 @@
   }
 
   const mod = {
-    getPersonColumns, getCsvValue, getDisplayValue, escapeCSV, downloadFile
+    getPersonColumns, getCsvValue, getDisplayValue, escapeCSV, escapeHTML, escapeHtml, downloadFile
   };
 
   if (typeof module!=='undefined' && module.exports) {
@@ -74,5 +95,9 @@
   const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
   root.LinkedInScraperModules = root.LinkedInScraperModules || {};
   root.LinkedInScraperModules.exportShared = mod;
+  // Expose a global alias for legacy callers that reference escapeHtml()
+  const g = (typeof globalThis!=='undefined') ? globalThis : (typeof window!=='undefined' ? window : {});
+  if (g && typeof g.escapeHtml !== 'function' && typeof mod.escapeHTML === 'function') {
+    g.escapeHtml = mod.escapeHTML;
+  }
 })();
-

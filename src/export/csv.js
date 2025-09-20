@@ -2,15 +2,20 @@
   'use strict';
 
   function getShared() {
-    if (typeof module!=='undefined' && module.exports) {
-      try { return require('./shared'); } catch(_) { return {}; }
+    // Prefer shared resolver, then fallback to legacy paths
+    function getResolver(){
+      if (typeof module!=='undefined' && module.exports) {
+        try { return require('../shared/modResolver'); } catch(_) { return null; }
+      }
+      const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+      return (r.LinkedInScraperModules||{}).modResolver || null;
     }
+    const res = getResolver();
+    if (res && typeof res.resolve==='function') return res.resolve('../export/shared','exportShared');
+    try { if (typeof module!=='undefined' && module.exports) return require('./shared'); } catch(_) {}
     const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-    const mods = root.LinkedInScraperModules || {};
-    return mods.exportShared || {};
+    return (root.LinkedInScraperModules||{}).exportShared || {};
   }
-
-  const shared = getShared();
 
   function exportToCsv(people) {
     if (!people || people.length===0) {
@@ -26,6 +31,7 @@
     shared.downloadFile(csvContent, `linkedin_profiles_${timestamp}.csv`, 'text/csv;charset=utf-8');
   }
 
+  const shared = getShared();
   const mod = { exportToCsv };
   if (typeof module!=='undefined' && module.exports) {
     module.exports = mod;
@@ -35,4 +41,3 @@
   root.LinkedInScraperModules.exportCsv = mod;
   if (typeof window!=='undefined') window.exportToCsv = exportToCsv;
 })();
-

@@ -1,32 +1,32 @@
 (function(){
   'use strict';
 
-  function getShared() {
+  function getResolver(){
     if (typeof module!=='undefined' && module.exports) {
-      try { return require('./shared'); } catch(_) { return {}; }
+      try { return require('../shared/modResolver'); } catch(_) { return null; }
     }
-    const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-    const mods = root.LinkedInScraperModules || {};
-    return mods.exportShared || {};
+    const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+    return (r.LinkedInScraperModules||{}).modResolver || null;
   }
-  function getThemeModule() {
-    if (typeof module!=='undefined' && module.exports) {
-      try { return require('../theme'); } catch(_) {}
-    }
+  function getShared(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../export/shared','exportShared');
+    try { if (typeof module!=='undefined' && module.exports) return require('./shared'); } catch(_) {}
     const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-    const mods = root.LinkedInScraperModules || {};
-    return mods.theme || {};
+    return (root.LinkedInScraperModules||{}).exportShared || {};
   }
-  function getUiStylesModule() {
-    if (typeof module!=='undefined' && module.exports) {
-      try { return require('../ui/styles'); } catch(_) {}
-    }
+  function getTheme(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../theme','theme');
+    try { if (typeof module!=='undefined' && module.exports) return require('../theme'); } catch(_) {}
     const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-    const mods = root.LinkedInScraperModules || {};
-    return mods.uiStyles || {};
+    return (root.LinkedInScraperModules||{}).theme || {};
+  }
+  function getUiStyles(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../ui/styles','uiStyles');
+    try { if (typeof module!=='undefined' && module.exports) return require('../ui/styles'); } catch(_) {}
+    const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+    return (root.LinkedInScraperModules||{}).uiStyles || {};
   }
 
   const shared = getShared();
+  const themeModule = getTheme();
+  const uiStylesModule = getUiStyles();
 
   function exportToHtml(people) {
     if (!people || people.length===0) {
@@ -34,8 +34,6 @@
       return;
     }
     const columns = shared.getPersonColumns();
-    const themeModule = getThemeModule();
-    const uiStylesModule = getUiStylesModule();
     const cssVars = (themeModule && typeof themeModule.getCssVariablesCss === 'function')
       ? themeModule.getCssVariablesCss(':root', themeModule.getActiveTokens ? themeModule.getActiveTokens() : undefined)
       : '';
@@ -44,27 +42,22 @@
         .replace(/#linkedin-scraper-ui\s*\{[\s\S]*?\}/g, '')
         .replace(/#linkedin-scraper-ui\s*\*\s*\{[\s\S]*?\}/g, '');
 
-    const escapeHtml = (str) => {
-      const div = document.createElement('div');
-      div.textContent = str || '';
-      return div.innerHTML;
-    };
     const renderHtmlCell = (person, column) => {
       const value = shared.getDisplayValue(person, column.key);
       if (column.key === 'profileUrl') {
         if (!value) return '<span class="no-data">-</span>';
-        const safeUrl = escapeHtml(String(value));
+        const safeUrl = shared.escapeHTML(String(value));
         return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="profile-link">${safeUrl}</a>`;
       }
       if (column.key === 'followers') {
-        if (typeof value === 'string' && value.trim()) return escapeHtml(value);
+        if (typeof value === 'string' && value.trim()) return shared.escapeHTML(value);
         if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString();
         return '<span class="no-data">-</span>';
       }
       if (!value) return '<span class="no-data">-</span>';
-      return escapeHtml(String(value));
+      return shared.escapeHTML(String(value));
     };
-    const headerCells = columns.map(c => `<th>${escapeHtml(c.label)}</th>`).join('');
+    const headerCells = columns.map(c => `<th>${shared.escapeHTML(c.label)}</th>`).join('');
     const bodyRows = people.map(p => {
       const cells = columns.map(c => {
         const content = renderHtmlCell(p, c);
@@ -88,7 +81,7 @@
     body{ background:var(--ef-bg0); padding:20px; color:var(--ef-fg); }
     .export-scope, .export-scope *{
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;
-      color:var(--ef-fg);
+      color:var(--ef-blue);
       box-sizing:border-box;
     }
     .container{
@@ -122,4 +115,3 @@
   root.LinkedInScraperModules.exportHtml = mod;
   if (typeof window!=='undefined') window.exportToHtml = exportToHtml;
 })();
-

@@ -1,6 +1,20 @@
 (function() {
     'use strict';
 
+    function getResolver(){
+        if (typeof module!=='undefined' && module.exports) {
+            try { return require('../shared/modResolver'); } catch(_) { return null; }
+        }
+        const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
+        return (r.LinkedInScraperModules||{}).modResolver || null;
+    }
+    function getAuth(){
+        const res = getResolver();
+        if (res && res.resolve) return res.resolve('./auth','auth');
+        try { if (typeof module!=='undefined' && module.exports) return require('./auth'); } catch(_) { return {}; }
+        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+        return (root.LinkedInScraperModules||{}).auth || {};
+    }
     function cleanValue(raw) {
         let clean = String(raw || '');
         if (clean.startsWith('[') && clean.endsWith(']')) clean = clean.slice(1, -1);
@@ -54,19 +68,6 @@
         return (searchBox && searchBox.value) ? searchBox.value : '';
     }
 
-    // NEW: local copy of CSRF token getter so this file is self-contained for requests
-    function getCsrfTokenForVoyager() {
-        const cookies = (typeof document!=='undefined' ? document.cookie : '').split(';');
-        for (let cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'JSESSIONID') {
-                const cleanValue = String(value || '').replace(/\"/g, '');
-                try { return decodeURIComponent(cleanValue); } catch { return cleanValue; }
-            }
-        }
-        return null;
-    }
-
     // NEW: request builder (URL + headers) used by fetch
     function buildVoyagerRequest({ keyword = '', start = 0, count = 10 }) {
         const url = buildLinkedInSearchUrl({ keyword, start, count });
@@ -74,7 +75,7 @@
             'x-restli-protocol-version': '2.0.0',
             'accept': 'application/vnd.linkedin.normalized+json+2.1'
         };
-        const csrf = getCsrfTokenForVoyager();
+        const csrf = getAuth().getCsrfToken ? getAuth().getCsrfToken() : null;
         if (csrf) headers['csrf-token'] = csrf;
         return { url, headers };
     }
