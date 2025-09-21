@@ -234,7 +234,12 @@
 
         createCellForColumn(column, person) {
             const cell = document.createElement('td');
-            const value = person ? person[column.key] : null;
+            // Use exporter display rules so merged experience/education columns render.
+            const value = person
+                ? (typeof utilsModule.getDisplayValue === 'function'
+                    ? utilsModule.getDisplayValue(person, column.key)
+                    : person[column.key])
+                : null;
 
             if (column.key === 'profileUrl') {
                 if (value) {

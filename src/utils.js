@@ -47,6 +47,8 @@
 
     const utilsModule = {
         getPersonColumns: shared.getPersonColumns,
+        // Expose exporter display helper so UI can reuse merged column formatting.
+        getDisplayValue: shared.getDisplayValue,
         downloadFile,
         // Surface escapers for callers that used to import from utils
         escapeHTML: shared.escapeHTML,
