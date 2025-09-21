@@ -9,7 +9,7 @@
             right: 20px;
             width: 720px;
             max-height: 80vh;
-            background: rgba(255, 251, 239, 0.98);
+            background: var(--ef-panel-bg, var(--ef-bg0));
             border: 1px solid var(--ef-bg4);
             border-radius: 8px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.45);
@@ -94,7 +94,8 @@
 
         .results-table-container {
             max-height: 400px;
-            overflow-y: auto;
+            /* scroll both axes so the horizontal bar belongs to this element */
+            overflow: auto;
             flex: 1;
             background: var(--ef-bg0);
         }
@@ -129,7 +130,7 @@
         .results-table td.empty { color: var(--ef-grey1); font-style: italic; }
         .results-table a.profile-link { color: var(--ef-blue); text-decoration: none; }
         .results-table a.profile-link:hover { color: var(--ef-aqua); text-decoration: underline; }
-        .results-table tr:hover { background: rgba(58, 148, 197, 0.10); }
+        .results-table tr:hover { background: var(--ef-visual); }
 
         .export-section {
             padding: 16px;
@@ -141,7 +142,7 @@
         }
         .export-button {
             background: var(--ef-green);
-            color: #FFFBEF;
+            color: var(--ef-bg0);
             padding: 8px 16px;
             border-radius: 4px;
             border: none;
@@ -183,10 +184,30 @@
             to { transform: translateY(0); opacity: 1; }
         }
 
-        .results-table-container::-webkit-scrollbar { width: 8px; }
-        .results-table-container::-webkit-scrollbar-track { background: var(--ef-bg1); }
-        .results-table-container::-webkit-scrollbar-thumb { background: var(--ef-bg3); border-radius: 4px; }
-        .results-table-container::-webkit-scrollbar-thumb:hover { background: var(--ef-visual); }
+        /* Scrollbars (Firefox + WebKit), deduplicated and tokenized */
+        .results-table-container,
+        .results-table {
+            scrollbar-color:
+              var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26))
+              var(--ef-scrollbar-track, var(--ef-bg1, #F8F5E4));
+        }
+        .results-table-container::-webkit-scrollbar,
+        .results-table::-webkit-scrollbar { width: 8px; height: 8px; }
+        .results-table-container::-webkit-scrollbar-track,
+        .results-table::-webkit-scrollbar-track {
+            background: var(--ef-scrollbar-track, var(--ef-bg1, #F8F5E4)) !important;
+        }
+        .results-table-container::-webkit-scrollbar-thumb,
+        .results-table::-webkit-scrollbar-thumb {
+            background: var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26)) !important;
+            border-radius: 4px;
+        }
+        .results-table-container::-webkit-scrollbar-thumb:hover,
+        .results-table-container::-webkit-scrollbar-thumb:active,
+        .results-table::-webkit-scrollbar-thumb:hover,
+        .results-table::-webkit-scrollbar-thumb:active {
+            background: var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26)) !important;
+        }
     `;
 
     function injectUiBaseStyles() {
@@ -213,4 +234,3 @@
     root.LinkedInScraperModules = root.LinkedInScraperModules || {};
     root.LinkedInScraperModules.uiStyles = uiStylesModule;
 })();
-

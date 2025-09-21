@@ -16,7 +16,13 @@
         '--ef-green': '#8DA101',
         '--ef-red': '#F85552',
         '--ef-yellow': '#DFA000',
-        '--ef-statusline3': '#E66868'
+        '--ef-statusline3': '#E66868',
+        // Scrollbar + brand accents
+        '--ef-orange': '#F57D26',
+        '--ef-scrollbar-thumb': 'var(--ef-orange)',
+        '--ef-scrollbar-track': 'var(--ef-bg1)',
+        // UI surface with slight translucency; falls back to bg0 if missing
+        '--ef-panel-bg': 'rgba(255, 251, 239, 0.98)'
     };
 
     const themeTokensModule = {
@@ -33,4 +39,3 @@
     root.LinkedInScraperModules = root.LinkedInScraperModules || {};
     root.LinkedInScraperModules.themeTokens = themeTokensModule;
 })();
-

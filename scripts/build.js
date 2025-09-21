@@ -23,15 +23,7 @@ function injectModule(code, indent = '    ') {
     return `\n${indent};\n${lines.join('\n')}\n`;
 }
 
-function minifyBasic(code) {
-    return code
-        .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\/\/.*$/gm, '')
-        .replace(/\n\s*\n/g, '\n')
-        .replace(/\s+/g, ' ')
-        .replace(/\s*([{}();,:])\s*/g, '$1')
-        .trim();
-}
+// (minifier removed; keep build readable and smaller)
 
 function buildConsoleVersion() {
     console.log('Building console version...');
@@ -204,6 +196,8 @@ function buildTampermonkeyVersion() {
 (function() {
     'use strict';
     
+    const DBG = !!(typeof localStorage!=='undefined' && localStorage.getItem('li_scraper_debug'));
+    
     // Schema definition${injectModule(schemaColumns)}
 
     // Theme tokens${injectModule(themeTokens)}
@@ -242,18 +236,18 @@ function buildTampermonkeyVersion() {
     
     // Add button to LinkedIn UI
     function addScraperButton() {
-        console.log('🔍 LinkedIn Scraper: addScraperButton called');
+        if (DBG) console.log('🔍 LinkedIn Scraper: addScraperButton called');
         if (document.getElementById('linkedin-scraper-button')) {
-            console.log('🔍 LinkedIn Scraper: Button already exists, skipping');
+            if (DBG) console.log('🔍 LinkedIn Scraper: Button already exists, skipping');
             return;
         }
         
         const buttonHost = document.body;
         if (!buttonHost) {
-            console.warn('LinkedIn Scraper: unable to locate page body to attach button.');
+            if (DBG) console.warn('LinkedIn Scraper: unable to locate page body to attach button.');
             return;
         }
-        console.log('🔍 LinkedIn Scraper: Creating button...');
+        if (DBG) console.log('🔍 LinkedIn Scraper: Creating button...');
 
         const button = document.createElement('button');
         button.id = 'linkedin-scraper-button';
@@ -263,8 +257,8 @@ function buildTampermonkeyVersion() {
             top: 70px;
             right: 20px;
             z-index: 9998;
-            background: #8DA101;
-            color: #FFFBEF;
+            background: var(--ef-green, #8DA101);
+            color: var(--ef-bg0, #FFFBEF);
             border: none;
             padding: 10px 20px;
             border-radius: 20px;
@@ -287,7 +281,7 @@ function buildTampermonkeyVersion() {
         
         button.onclick = startScraper;
         buttonHost.appendChild(button);
-        console.log('🔍 LinkedIn Scraper: Button added successfully!');
+        if (DBG) console.log('🔍 LinkedIn Scraper: Button added successfully!');
     }
     
     function startScraper() {
@@ -315,7 +309,7 @@ function buildTampermonkeyVersion() {
         const scraper = new LinkedInScraper(parseInt(targetCount));
         
         scraper.run().then(people => {
-            console.log(\`✅ Successfully scraped \${people.length} profiles!\`);
+            if (DBG) console.log(\`✅ Successfully scraped \${people.length} profiles!\`);
             
             // Show success notification
             const notification = document.createElement('div');
@@ -347,7 +341,7 @@ function buildTampermonkeyVersion() {
     }
     
     // ---------- Robust boot: people-only, SPA-aware, idempotent ----------
-    console.log('🔍 LinkedIn Scraper: Script starting...');
+    if (DBG) console.log('🔍 LinkedIn Scraper: Script starting...');
     
     // 1) Keyframes with GM_addStyle guard and fallback
     (function addKeyframes(){
@@ -365,21 +359,21 @@ function buildTampermonkeyVersion() {
     const onPeoplePage = () => location.pathname.includes('/search/results/people');
 
     function ensureButtonVisibility(){
-      console.log('🔍 LinkedIn Scraper: Checking button visibility...');
-      console.log('🔍 LinkedIn Scraper: Current path:', location.pathname);
-      console.log('🔍 LinkedIn Scraper: Is people page?', onPeoplePage());
+      if (DBG) console.log('🔍 LinkedIn Scraper: Checking button visibility...');
+      if (DBG) console.log('🔍 LinkedIn Scraper: Current path:', location.pathname);
+      if (DBG) console.log('🔍 LinkedIn Scraper: Is people page?', onPeoplePage());
       
       const btn = document.getElementById('linkedin-scraper-button');
       if (onPeoplePage()) {
         if (!btn) {
-          console.log('🔍 LinkedIn Scraper: Adding button...');
+          if (DBG) console.log('🔍 LinkedIn Scraper: Adding button...');
           addScraperButton();
         } else {
-          console.log('🔍 LinkedIn Scraper: Button already exists');
+          if (DBG) console.log('🔍 LinkedIn Scraper: Button already exists');
         }
       }
       else if (btn) {
-        console.log('🔍 LinkedIn Scraper: Not on people page, removing button');
+        if (DBG) console.log('🔍 LinkedIn Scraper: Not on people page, removing button');
         btn.remove();
       }
     }
@@ -420,7 +414,7 @@ function buildTampermonkeyVersion() {
       }).observe(document.documentElement, { childList:true });
     }
 
-    console.log('🔍 LinkedIn Scraper loaded! Click the "Scrape Profiles" button or use Tampermonkey menu.');
+    if (DBG) console.log('🔍 LinkedIn Scraper loaded! Click the "Scrape Profiles" button or use Tampermonkey menu.');
 
 })();`;
     

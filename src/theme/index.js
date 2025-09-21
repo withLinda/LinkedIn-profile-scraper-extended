@@ -43,7 +43,10 @@
     function applyTheme(container) {
         const doc = (typeof document !== 'undefined') ? document : null;
         if (!doc) return;
-        const scope = '#linkedin-scraper-ui';
+        // Expose tokens both on :root and on the UI container.
+        // This ensures pseudo-elements like ::-webkit-scrollbar can resolve vars,
+        // matching the exported HTML behavior.
+        const scope = ':root, #linkedin-scraper-ui';
         let styleEl = doc.getElementById('linkedin-scraper-theme');
         if (!styleEl) {
             styleEl = doc.createElement('style');
@@ -81,4 +84,3 @@
     root.LinkedInScraperModules = root.LinkedInScraperModules || {};
     root.LinkedInScraperModules.theme = themeModule;
 })();
-
