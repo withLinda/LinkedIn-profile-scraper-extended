@@ -16,8 +16,47 @@
   }
 
   // --- Value accessors ------------------------------------------------------
+  function joinNonEmptyLines(parts) {
+    return parts
+      .map(function (part) {
+        var text = part == null ? '' : String(part).trim();
+        return text ? text : null;
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  function makeExperienceString(person, idx) {
+    var prefix = 'exp' + idx + '_';
+    return joinNonEmptyLines([
+      person[prefix + 'company'],
+      person[prefix + 'duration'],
+      person[prefix + 'position'],
+      person[prefix + 'position_duration'],
+      person[prefix + 'description']
+    ]);
+  }
+
+  function makeEducationString(person, idx) {
+    var prefix = 'edu' + idx + '_';
+    return joinNonEmptyLines([
+      person[prefix + 'institution'],
+      person[prefix + 'degree'],
+      person[prefix + 'grade'],
+      person[prefix + 'description']
+    ]);
+  }
+
   function getCsvValue(person, key) {
     if (!person) return '';
+    if (/^exp[1-3]$/.test(key)) {
+      var expIndex = Number(key.replace('exp', ''));
+      return makeExperienceString(person, expIndex);
+    }
+    if (/^edu[1-3]$/.test(key)) {
+      var eduIndex = Number(key.replace('edu', ''));
+      return makeEducationString(person, eduIndex);
+    }
     if (key === 'followers') {
       const f = person.followers;
       if (typeof f === 'string') return f;
@@ -30,6 +69,16 @@
 
   function getDisplayValue(person, key) {
     if (!person) return '';
+    if (/^exp[1-3]$/.test(key)) {
+      var expIndex = Number(key.replace('exp', ''));
+      var expValue = makeExperienceString(person, expIndex);
+      return expValue ? expValue : null;
+    }
+    if (/^edu[1-3]$/.test(key)) {
+      var eduIndex = Number(key.replace('edu', ''));
+      var eduValue = makeEducationString(person, eduIndex);
+      return eduValue ? eduValue : null;
+    }
     if (key === 'followers') {
       const f = person.followers;
       if (typeof f === 'string' && f.trim()) return f;
