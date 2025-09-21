@@ -1,112 +1,189 @@
-# LinkedIn Profile Scraper (lite)
+# LinkedIn Profile Scraper (Extended)
 
-Browser-native LinkedIn people-search scraper that runs as a Tampermonkey userscript or a one-off console snippet. It collects profile cards from LinkedIn's Voyager API, renders a live overlay, and exports the results to CSV or HTML—everything stays in your browser session.
+A browser-based LinkedIn profile scraper that enriches people search results with profile details and multiple export formats. Designed to run **directly from your DevTools Console**—no extensions required.
 
-> ⚠️ LinkedIn tweaks their UI and Voyager endpoints frequently. Expect to refresh to the latest build when things break.
-> 
-> 📝 Scope: people-search result cards only. Full profile crawling is out of scope.
+> ⚠️ **Heads-up:** LinkedIn frequently adjusts their UI and Voyager endpoints. Behaviour can break without warning. If something stops working, pull the latest build or open an issue.
+>
+> 📝 **Scope:** Targets **search results** and enriches profiles where possible (About, Experience, Education). Full profile scrapes are out of scope.
 
-## Highlights
+---
 
-- Runs from the Tampermonkey menu (`🔍 Start LinkedIn Scraper`) or the floating `Scrape Profiles` button that appears only on `/search/results/people` routes
-- Route guard + History API + `locationchange` listener keep the UI in sync as you navigate search tabs
-- Handles rate limits with jittered delays and bounded retries; stops after three empty result pages
-- Real-time overlay shows progress, captured rows, export controls, and inline error toasts
-- Clean exports: UTF-8 BOM CSV and styled HTML tables saved via in-browser Blobs with timestamped filenames
-- No server component, no external dependencies—your LinkedIn session (cookies + optional CSRF token) stays in the browser
+## Features
 
-## Requirements
+- 🖥️ **Console-first workflow:** Copy one script, paste into DevTools, and scrape instantly
+- 🧠 **Profile enrichment:** Fetches About, top 3 experience entries, and top 3 education entries when URN data is available
+- 📊 **Live overlay UI:** In-page dashboard with progress bar, deduped table, and inline error messages
+- 📦 **Multi-format exports:** CSV, HTML, and JSON payloads that mirror the on-screen table
+- 🔄 **Resilient fetching:** Handles Voyager rate limits with jittered retries and graceful warnings
+- 🔒 **Local-only processing:** Runs entirely in your browser session; no external servers involved
 
-- Logged-in LinkedIn session in a desktop browser (Chromium, Firefox, Edge, or Safari)
-- For Tampermonkey mode: the [Tampermonkey extension](https://www.tampermonkey.net/) installed
-- For console mode: permission to run pasted JavaScript in DevTools
+---
 
-## Install & Run
+## 📸 Screenshots
 
-### Option A — Tampermonkey overlay (best for repeat runs)
+### In-page Overlay
+![Scraper UI overlay](image-for-readme/in-page-UI.png)  
+*Floating controller with live progress, table, and export buttons*
 
-1. Install Tampermonkey (Chrome, Firefox, Edge all supported).
-2. Open the one-click installer:
-   - Raw userscript: `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/linkedin-scraper.user.js`
-   - Friendly mirror: [`install.html`](https://withlinda.github.io/LinkedIn-profile-scraper-lite/install.html)
-3. Visit a LinkedIn people-search page and launch the scraper using either the floating **Scrape Profiles** button or the Tampermonkey menu command **🔍 Start LinkedIn Scraper**.
+### HTML Export Preview
+![HTML export preview](image-for-readme/exported-html-UI.png)  
+*Formatted HTML table mirroring the console overlay*
 
-### Option B — One-off console run (no extensions)
+### CSV Import Example
+![CSV opened in spreadsheet](image-for-readme/CSV-screenshot.png)  
+*Spreadsheet-ready output with headers for enrichment fields*
 
-1. Navigate to a people-search URL, e.g. `https://www.linkedin.com/search/results/people/?keywords=product%20designer`.
-2. Open DevTools → **Console**.
-3. Fetch and paste the console build from `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-lite/main/build/console.js`, then press Enter.
-4. Enter the target number of profiles (default 300) and let the overlay drive the rest.
+### JSON Package
+![JSON export opened in editor](image-for-readme/exported-JSON.png)  
+*Structured JSON payload with metadata, columns, and rows*
 
-## Using the scraper
+---
 
-- Guard: the script verifies you are on `/search/results/people` before it runs.
-- Prompt: choose how many profiles to collect; pagination is handled automatically in batches of 10.
-- Run loop: the scraper builds Voyager GraphQL URLs with queryId `voyagerSearchDashClusters.15c671c3162c043443995439a3d3b6dd`, injects required headers (`x-restli-protocol-version`, optional `csrf-token`), and keeps requesting until the target is met or three consecutive empty pages occur.
-- UI overlay: shows counts, progress bar, table preview, and inline error toasts for rate limits or missing tokens. You can dismiss it with the close icon.
-- Completion: once the run stops, the export buttons activate so you can download CSV or HTML immediately.
+## 🚀 Quick Start (Browser Console)
 
-## Data captured
+**Most reliable path. No extensions, no installs.**
 
-| Field       | Source / Notes |
-| ----------- | -------------- |
-| `name`      | `record.image.accessibilityText` (trimmed) |
-| `profileUrl`| Normalized with `sanitizeProfileUrl` to `/in/{slug}` format |
-| `headline`  | `record.primarySubtitle.text` |
-| `location`  | `record.secondarySubtitle.text` |
-| `current`   | Summary text with `Current:` prefix removed |
-| `followers` | Parsed with suffix-aware `parseFollowers` (`1.5K`, `2M`, etc.) |
-| `urnCode`   | Extracted via `extractMiniProfileUrn` |
+1. **Go to a LinkedIn people search page**  
+   Example: `https://www.linkedin.com/search/results/people/?keywords=product%20manager`
+2. **Open DevTools → Console**  
+   `F12` (Windows) · `⌥⌘I` (macOS) → choose the **Console** tab
+3. **Load the script**  
+   Open the raw file, select all, copy:
+   `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-extended/main/build/console.js`
+4. **Paste & run**  
+   Paste into the Console, hit **Enter**, then enter a target profile count when prompted
+5. **Monitor progress**  
+   Watch the overlay update. You can dismiss messages or stop the script from the UI at any time
+6. **Export results**  
+   When enabled, choose **Export CSV**, **Export HTML**, or **Export JSON** to download your data
 
-Duplicates are dropped based on `profileUrl`, so each row is unique.
+> ℹ️ **Tip:** If you forked this repo, adjust the GitHub URL above to match your username/branch. For offline use, open `build/console.js` from your local clone and copy the contents manually.
 
-## Export formats
+---
 
-- **CSV**: UTF-8 with BOM, escaped cells, filename `linkedin_profiles_YYYY-MM-DD.csv`.
-- **HTML**: stand-alone table with lightweight styling for printing or copy/paste.
-
-Both exports are generated entirely in-browser using `Blob` URLs—no data leaves your machine.
-
-## Under the hood
-
-- Core engine: the `LinkedInScraper` class orchestrates keyword detection, pagination, deduplication, and rate limit handling (`delay(400–1100ms)` with retries up to three times).
-- Extractors: `extractPerson` composes final records using helpers from `lib/url` and `lib/parse`.
-- UI module: `ScraperUI` injects fixed overlay styles, keeps a MutationObserver alive so the floating button survives DOM refreshes, and wires export handlers.
-- Utilities: `exportToCsv` / `exportToHtml` live in `utils.js` and share column definitions from `schema/columns.js`.
-- Install artifact: `install.html` mirrors the latest userscript and documents fallback install paths.
-
-The repository is intentionally small—only the userscript and install page are shipped in `build/`.
-
-## Troubleshooting & limits
-
-- **Not on a people-search page**: ensure the URL contains `/search/results/people`.
-- **Rate limited by LinkedIn (HTTP 429)**: the script pauses with a toast message. Let it retry or rerun later.
-- **Promo / monthly limit cards**: LinkedIn may inject promo cards; when no real results are returned, the UI surfaces a warning.
-- **Empty exports**: stay logged in, loosen filters, and try a smaller target to confirm results are coming in.
-
-Operational notes: LinkedIn returns ~10 profiles per request, CSLF cookies must be present, and the scraper halts after three empty batches. Large pulls (>500) can take several minutes.
-
-## Development
+## Building from Source
 
 ```bash
-npm install # (only needed if you plan to modify scripts)
-npm run build
+# Clone repository & install dependencies (Node.js 18+ recommended)
+cd LinkedIn-profile-scraper-extended
+npm install  # only needed if you plan to rebuild
+npm run build  # outputs compiled assets into /build
 ```
 
-Build outputs land in `build/`:
-- `build/console.js` — pasteable DevTools version
-- `build/linkedin-scraper.user.js` — Tampermonkey package
+Build artifacts:
 
-The build also publishes `LinkedInScraper`, `LinkedInScraperCore`, and `ScraperUI` globals for quick experimentation.
+- `build/console.js` — the console-only script (copy/paste into DevTools)
+- `build/linkedin-scraper.user.js` — bundled userscript (included for parity, not covered here)
+- `build/userscript.js` — shared runtime pieces for advanced setups
 
-## Privacy, ethics, and terms
+---
 
-- Scrapes only what LinkedIn exposes in search results while you are logged in.
-- Runs locally; nothing is transmitted to external servers by this project.
-- You are responsible for complying with LinkedIn's Terms of Service and local laws.
+## Data Model & Exports
 
-## License
+### Extracted Fields
 
-MIT License — use at your own discretion.
+Name · Profile URL · Headline · Location · Current Role · Followers · URN Code  
+About summary · Up to 3 flattened Experience entries (company, title, durations, descriptions)  
+Up to 3 flattened Education entries (institution, degree, grade, description)
 
-_Last updated: September 2025_
+### Export Formats
+
+- **CSV:** UTF-8 with BOM, spreadsheet friendly headers, merged experience/education cells
+- **HTML:** Standalone document, sticky headers, responsive layout, links preserved
+- **JSON:** Includes metadata (columns, timestamp, count) plus row objects reflecting the table
+
+---
+
+## How It Works
+
+1. **Voyager GraphQL API:** Requests people search batches (10 profiles per call)
+2. **Keyword detection:** Reads the active search query from the page when possible
+3. **Rate-limit strategy:** Jittered 400–1100ms delays, retries + cooldown on `RATE_LIMIT`
+4. **Data enrichment:** Resolves profile URNs to fetch About/Experience/Education payloads
+5. **Deduplication:** Normalises profile URLs before adding to the dataset
+6. **UI overlay:** Injects a themed controller with progress, table, and export buttons
+
+---
+
+## Troubleshooting
+
+**“Not on LinkedIn search page”**  
+Load a people search URL before running the script.
+
+**“fetchVoyagerJson not available”**  
+The page may not have LinkedIn scripts fully loaded yet; reload and try again, or ensure you ran the latest build.
+
+**Rate limit warnings**  
+The overlay pauses and retries automatically. If it persists, wait a few minutes before resuming.
+
+**No enrichment columns**  
+Profiles without URNs (or private profiles) may not expose About/Experience/Education data—headers remain but cells show `-`.
+
+---
+
+## Best Practices
+
+1. Validate with **25–50 profiles** before large runs
+2. Allow the overlay to finish before navigating to a new tab
+3. Export immediately when the run completes—LinkedIn may clear cached results on refresh
+4. Use search filters (location, industry, past company) to reduce noise
+5. Keep only one scraping tab active at a time to avoid duplicate requests
+
+---
+
+## Technical Details
+
+- Pure JavaScript bundle compiled for browser consoles
+- Uses modular resolver to share code between console/userscript builds
+- Randomised intervals + retry cap (3 attempts) for Voyager and profile enrichment fetches
+- Table rendering shares export formatting helpers to ensure parity across formats
+
+---
+
+## Privacy & Ethics
+
+- Scrapes data visible to your authenticated LinkedIn session only
+- No data leaves your browser; files download directly to your machine
+- Respect LinkedIn’s Terms of Service and local regulations
+- Use responsibly; prolonged automated access may violate platform policies
+
+---
+
+## Limitations
+
+- Requires an active LinkedIn login and people search access
+- Restricted to data exposed in search results + accessible profile URNs
+- Subject to LinkedIn UI/API changes and anti-automation limits
+- Large jobs may slow if promotion cards or limits interrupt the result stream
+
+---
+
+## Browser Compatibility
+
+- ✅ Chrome / Chromium (recommended)
+- ✅ Firefox · ✅ Edge
+- ⚠️ Safari (UI overlay works, but DevTools console quirks may appear)
+- ⚠️ Brave (disable or adjust Shields for LinkedIn)
+
+---
+
+## Support & Contributing
+
+1. Review **Troubleshooting** above for quick fixes
+2. Reproduce on the latest `main` build before filing reports
+3. Include Console logs and LinkedIn search URL (redacted as needed) when opening issues
+
+Pull requests welcome—focus on stability, enrichment accuracy, or export improvements.
+
+---
+
+## License & Disclaimer
+
+MIT License — provided as-is. You are solely responsible for how you use this tool.
+
+This project is for educational and productivity purposes. The authors assume no liability for account actions or policy violations that may result from use.
+
+---
+
+**Last Updated:** September 2025
+**Version:** 1.0.0
