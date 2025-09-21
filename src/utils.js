@@ -74,10 +74,6 @@
         if (typeof csv === 'function') window.exportToCsv = csv;
         if (typeof html === 'function') window.exportToHtml = html;
         window.downloadFile = downloadFile;
-        // Provide a global alias for legacy bundles that call escapeHtml() directly.
-        if (!window.escapeHtml && typeof shared.escapeHTML === 'function') {
-            window.escapeHtml = shared.escapeHTML;
-        }
     }
 
 })();

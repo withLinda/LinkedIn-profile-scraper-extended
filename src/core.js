@@ -30,17 +30,7 @@
     }
     const __profile__ = getProfileModule();
 
-    function getCsrfToken() {
-        const cookies = document.cookie.split(';');
-        for (let cookie of cookies) {
-            const [name, value] = cookie.trim().split('=');
-            if (name === 'JSESSIONID') {
-                const cleanValue = value.replace(/"/g, '');
-                return decodeURIComponent(cleanValue);
-            }
-        }
-        return null;
-    }
+    // Use lib/auth.getCsrfToken() via shared modules; legacy cookie helper removed.
 
     function getExtractPersonFn() {
         if (typeof module !== 'undefined' && module.exports) {

@@ -178,7 +178,7 @@
             return `${scope}{ ${body} }`;
         }
     
-        // Apply theme variables to the in-page UI container.
+        // Apply theme variables to the in-page UI container and :root for wider scope.
         function applyTheme(container) {
             const doc = (typeof document !== 'undefined') ? document : null;
             if (!doc) return;
@@ -189,7 +189,12 @@
                 styleEl.id = 'linkedin-scraper-theme';
                 doc.head.appendChild(styleEl);
             }
-            styleEl.textContent = getCssVariablesCss(scope, getActiveTokens());
+            // Write variables for both :root and the in-page UI scope so
+            // exported HTML and in-page UI share consistent colors.
+            const tokens = getActiveTokens();
+            const cssRoot = getCssVariablesCss(':root', tokens);
+            const cssScoped = getCssVariablesCss(scope, tokens);
+            styleEl.textContent = cssRoot + "\n" + cssScoped;
         }
     
         // Replace current theme tokens at runtime.
@@ -378,10 +383,20 @@
             return clean;
         }
     
+        function isDebug(){
+            try {
+                const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+                const ls = root.localStorage;
+                return !!(ls && ls.getItem && ls.getItem('li_scraper_debug'));
+            } catch { return false; }
+        }
+    
         function buildLinkedInSearchUrl({ keyword = '', start = 0, count = 10 }) {
             const urlParams = new URLSearchParams(window.location.search);
-            console.log('=== Building LinkedIn API URL ===');
-            console.log('Current URL:', window.location.href);
+            if (isDebug()){
+                console.log('=== Building LinkedIn API URL ===');
+                console.log('Current URL:', window.location.href);
+            }
     
             const excludeParams = [
                 'keywords', 'origin', 'sid', '_sid', 'trk', '_trk', 'lipi', 'lici'
@@ -392,7 +407,9 @@
                 if (!excludeParams.includes(key) && value) {
                     const clean = cleanValue(value);
                     queryParamsList.push(`(key:${key},value:List(${clean}))`);
-                    console.log('Added parameter:', key, '=', clean);
+                    if (isDebug()){
+                        console.log('Added parameter:', key, '=', clean);
+                    }
                 }
             });
             queryParamsList.push('(key:resultType,value:List(PEOPLE))');
@@ -409,8 +426,10 @@
     
             const queryId = 'queryId=voyagerSearchDashClusters.15c671c3162c043443995439a3d3b6dd';
             const finalUrl = 'https://www.linkedin.com/voyager/api/graphql?' + variables + '&' + queryId;
-            console.log('Final URL:', finalUrl);
-            console.log('=============================');
+            if (isDebug()){
+                console.log('Final URL:', finalUrl);
+                console.log('=============================');
+            }
             return finalUrl;
         }
     
@@ -795,17 +814,7 @@
         }
         const __profile__ = getProfileModule();
     
-        function getCsrfToken() {
-            const cookies = document.cookie.split(';');
-            for (let cookie of cookies) {
-                const [name, value] = cookie.trim().split('=');
-                if (name === 'JSESSIONID') {
-                    const cleanValue = value.replace(/"/g, '');
-                    return decodeURIComponent(cleanValue);
-                }
-            }
-            return null;
-        }
+        // Use lib/auth.getCsrfToken() via shared modules; legacy cookie helper removed.
     
         function getExtractPersonFn() {
             if (typeof module !== 'undefined' && module.exports) {
@@ -1200,102 +1209,69 @@
         const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
         return (r.LinkedInScraperModules||{}).modResolver || null;
       }
-      function getShared(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../export/shared','exportShared');
+    
+      function getShared(){
+        const res=getResolver();
+        if (res && res.resolve) return res.resolve('../export/shared','exportShared');
         try { if (typeof module!=='undefined' && module.exports) return require('./shared'); } catch(_) {}
         const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
         return (root.LinkedInScraperModules||{}).exportShared || {};
       }
-      function getTheme(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../theme','theme');
-        try { if (typeof module!=='undefined' && module.exports) return require('../theme'); } catch(_) {}
-        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        return (root.LinkedInScraperModules||{}).theme || {};
-      }
-      function getUiStyles(){ const res=getResolver(); if (res && res.resolve) return res.resolve('../ui/styles','uiStyles');
-        try { if (typeof module!=='undefined' && module.exports) return require('../ui/styles'); } catch(_) {}
-        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        return (root.LinkedInScraperModules||{}).uiStyles || {};
-      }
     
       const shared = getShared();
-      const themeModule = getTheme();
-      const uiStylesModule = getUiStyles();
     
       function exportToHtml(people) {
-        if (!people || people.length===0) {
+        if (!people || !people.length) {
           alert('No data to export');
           return;
         }
-        const columns = shared.getPersonColumns();
-        const cssVars = (themeModule && typeof themeModule.getCssVariablesCss === 'function')
-          ? themeModule.getCssVariablesCss(':root', themeModule.getActiveTokens ? themeModule.getActiveTokens() : undefined)
-          : '';
-        const baseCss = (uiStylesModule && uiStylesModule.UI_BASE_CSS) ? uiStylesModule.UI_BASE_CSS : '';
-        const scopedBaseCss = baseCss
-            .replace(/#linkedin-scraper-ui\s*\{[\s\S]*?\}/g, '')
-            .replace(/#linkedin-scraper-ui\s*\*\s*\{[\s\S]*?\}/g, '');
     
-        const renderHtmlCell = (person, column) => {
-          const value = shared.getDisplayValue(person, column.key);
-          if (column.key === 'profileUrl') {
-            if (!value) return '<span class="no-data">-</span>';
-            const safeUrl = shared.escapeHTML(String(value));
-            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="profile-link">${safeUrl}</a>`;
-          }
-          if (column.key === 'followers') {
-            if (typeof value === 'string' && value.trim()) return shared.escapeHTML(value);
-            if (typeof value === 'number' && Number.isFinite(value)) return value.toLocaleString();
-            return '<span class="no-data">-</span>';
-          }
-          if (!value) return '<span class="no-data">-</span>';
-          return shared.escapeHTML(String(value));
-        };
-        const headerCells = columns.map(c => `<th>${shared.escapeHTML(c.label)}</th>`).join('');
-        const bodyRows = people.map(p => {
-          const cells = columns.map(c => {
-            const content = renderHtmlCell(p, c);
-            const cellClass = c.key === 'followers' ? 'followers' : '';
-            return cellClass ? `<td class="${cellClass}">${content}</td>` : `<td>${content}</td>`;
-          }).join('');
-          return `<tr>${cells}</tr>`;
+        const columns = shared.getPersonColumns();
+        const escape = shared.escapeHTML;
+        const getVal = shared.getDisplayValue;
+    
+        const headers = columns.map(c => `<th>${escape(c.label)}</th>`).join('');
+        const rows = people.map(p => {
+          return '<tr>' + columns.map(c => {
+            const raw = getVal(p, c.key);
+            if (c.key === 'profileUrl' && raw) {
+              const safe = escape(raw);
+              return `<td><a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a></td>`;
+            }
+            return `<td>${escape(raw)}</td>`;
+          }).join('') + '</tr>';
         }).join('');
     
-        const htmlContent = `<!DOCTYPE html>
+        const htmlContent = `<!doctype html>
     <html lang="en">
     <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta name="color-scheme" content="light">
-      <title>LinkedIn Profiles Export</title>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>LinkedIn Profiles</title>
       <style>
-        ${cssVars}
-        html{ color-scheme: light; }
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body{ background:var(--ef-bg0); padding:20px; color:var(--ef-fg); }
-        .export-scope, .export-scope *{
-          font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;
-          color:var(--ef-blue);
-          box-sizing:border-box;
-        }
-        .container{
-          max-width:1400px; margin:0 auto; background:var(--ef-bg1);
-          border:1px solid var(--ef-bg3); border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.4); overflow:hidden;
-        }
-        h1{ background:var(--ef-bg0); color:var(--ef-aqua); padding:20px; font-size:24px; }
-        .meta{ padding:15px 20px; background:var(--ef-bg0); border-bottom:1px solid var(--ef-bg3); font-size:14px; color:var(--ef-grey1); }
-        table{ width:100%; border-collapse:collapse; }
-        ${scopedBaseCss}
-        .followers{ text-align:right; font-weight:500; color:var(--ef-fg); white-space:nowrap; }
-        .no-data{ color:var(--ef-grey1); font-style:italic; }
+        :root{ --bg:#fff; --fg:#333; --muted:#e5e7eb; --muted-2:#f3f4f6; --link:#2563eb; }
+        body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;}
+        .page{padding:24px 24px 48px;}
+        h1{margin:0 0 16px 0;font-size:18px;color:var(--link)}
+        .table-wrap{border:1px solid var(--muted);border-radius:8px;overflow:auto;max-height:80vh;background:var(--bg)}
+        table{border-collapse:collapse;width:100%;min-width:900px}
+        th,td{padding:10px 12px;border-bottom:1px solid var(--muted);vertical-align:top; text-wrap:pretty;}
+        th{position:sticky;top:0;background:var(--muted-2);z-index:1;text-align:left}
+        tr:hover td{background:#fafafa}
+        a{color:var(--link);text-decoration:none}
+        a:hover{text-decoration:underline}
+        .meta{margin:8px 0 16px 0;color:#6b7280}
       </style>
     </head>
     <body>
-      <div class="export-scope container">
-        <h1>LinkedIn Profiles Export</h1>
-        <div class="meta"><strong>Export Date:</strong> ${new Date().toLocaleDateString()} | <strong>Total Profiles:</strong> ${people.length}</div>
-        <table class="results-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
+      <div class="page">
+        <h1>LinkedIn Profiles</h1>
+        <div class="meta">${people.length} profiles • exported ${new Date().toLocaleString()}</div>
+        <div class="table-wrap"><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>
       </div>
     </body>
     </html>`;
+    
         const timestamp = new Date().toISOString().split('T')[0];
         shared.downloadFile(htmlContent, `linkedin_profiles_${timestamp}.html`, 'text/html;charset=utf-8');
       }
@@ -1387,10 +1363,6 @@
             if (typeof csv === 'function') window.exportToCsv = csv;
             if (typeof html === 'function') window.exportToHtml = html;
             window.downloadFile = downloadFile;
-            // Provide a global alias for legacy bundles that call escapeHtml() directly.
-            if (!window.escapeHtml && typeof shared.escapeHTML === 'function') {
-                window.escapeHtml = shared.escapeHTML;
-            }
         }
     
     })();
@@ -1409,7 +1381,7 @@
                 right: 20px;
                 width: 720px;
                 max-height: 80vh;
-                background: rgba(255, 251, 239, 0.98);
+                background: var(--ef-bg0);
                 border: 1px solid var(--ef-bg4);
                 border-radius: 8px;
                 box-shadow: 0 10px 40px rgba(0,0,0,0.45);
@@ -1529,7 +1501,7 @@
             .results-table td.empty { color: var(--ef-grey1); font-style: italic; }
             .results-table a.profile-link { color: var(--ef-blue); text-decoration: none; }
             .results-table a.profile-link:hover { color: var(--ef-aqua); text-decoration: underline; }
-            .results-table tr:hover { background: rgba(58, 148, 197, 0.10); }
+            .results-table tr:hover { background: var(--ef-visual); }
     
             .export-section {
                 padding: 16px;
@@ -1541,7 +1513,7 @@
             }
             .export-button {
                 background: var(--ef-green);
-                color: #FFFBEF;
+                color: var(--ef-bg0);
                 padding: 8px 16px;
                 border-radius: 4px;
                 border: none;

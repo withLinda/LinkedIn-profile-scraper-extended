@@ -23,10 +23,20 @@
         return clean;
     }
 
+    function isDebug(){
+        try {
+            const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+            const ls = root.localStorage;
+            return !!(ls && ls.getItem && ls.getItem('li_scraper_debug'));
+        } catch { return false; }
+    }
+
     function buildLinkedInSearchUrl({ keyword = '', start = 0, count = 10 }) {
         const urlParams = new URLSearchParams(window.location.search);
-        console.log('=== Building LinkedIn API URL ===');
-        console.log('Current URL:', window.location.href);
+        if (isDebug()){
+            console.log('=== Building LinkedIn API URL ===');
+            console.log('Current URL:', window.location.href);
+        }
 
         const excludeParams = [
             'keywords', 'origin', 'sid', '_sid', 'trk', '_trk', 'lipi', 'lici'
@@ -37,7 +47,9 @@
             if (!excludeParams.includes(key) && value) {
                 const clean = cleanValue(value);
                 queryParamsList.push(`(key:${key},value:List(${clean}))`);
-                console.log('Added parameter:', key, '=', clean);
+                if (isDebug()){
+                    console.log('Added parameter:', key, '=', clean);
+                }
             }
         });
         queryParamsList.push('(key:resultType,value:List(PEOPLE))');
@@ -54,8 +66,10 @@
 
         const queryId = 'queryId=voyagerSearchDashClusters.15c671c3162c043443995439a3d3b6dd';
         const finalUrl = 'https://www.linkedin.com/voyager/api/graphql?' + variables + '&' + queryId;
-        console.log('Final URL:', finalUrl);
-        console.log('=============================');
+        if (isDebug()){
+            console.log('Final URL:', finalUrl);
+            console.log('=============================');
+        }
         return finalUrl;
     }
 
