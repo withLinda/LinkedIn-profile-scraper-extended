@@ -36,7 +36,7 @@
         }
 
         .scraper-title {
-            font-size: 18px;
+            font-size: var(--ef-font-ui-title, 18px);
             font-weight: 600;
             color: var(--ef-blue);
         }
@@ -116,6 +116,7 @@
             z-index: 1;
             color: var(--ef-statusline3);
             border-bottom: 1px solid var(--ef-bg4);
+            font-size: var(--ef-font-ui-th, 13px);
         }
         .results-table td {
             padding: 8px 12px;

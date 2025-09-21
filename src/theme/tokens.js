@@ -22,7 +22,14 @@
         '--ef-scrollbar-thumb': 'var(--ef-orange)',
         '--ef-scrollbar-track': 'var(--ef-bg1)',
         // UI surface with slight translucency; falls back to bg0 if missing
-        '--ef-panel-bg': 'rgba(255, 251, 239, 0.98)'
+        '--ef-panel-bg': 'rgba(255, 251, 239, 0.98)',
+        // === Font size tokens (NEW) ===
+        // Exported HTML
+        '--ef-font-export-h1': '24px',
+        '--ef-font-export-th': '13px',
+        // In-page UI
+        '--ef-font-ui-title': '18px',
+        '--ef-font-ui-th': '13px'
     };
 
     const themeTokensModule = {

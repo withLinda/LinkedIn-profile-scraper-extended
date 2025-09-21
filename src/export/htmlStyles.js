@@ -9,7 +9,7 @@
     'a:hover { color: var(--ef-aqua, #35A77C); text-decoration: underline; }',
     '.page { padding: 32px clamp(16px, 5vw, 64px) 56px; background: var(--ef-bg0, #ffffff); min-height: 100vh; display: flex; flex-direction: column; gap: 24px; }',
     '.header { display: flex; flex-direction: column; gap: 4px; }',
-    '.header h1 { margin: 0; font-size: 24px; font-weight: 600; color: var(--ef-blue, #3A94C5); }',
+    '.header h1 { margin: 0; font-size: var(--ef-font-export-h1, 24px); font-weight: 600; color: var(--ef-blue, #3A94C5); }',
     '.header .meta { margin: 0; color: var(--ef-grey1, #939F91); font-size: 13px; }',
     '.table-shell { border: 1px solid var(--ef-bg3, #d7d3c5); border-radius: 12px; background: var(--ef-bg0, #ffffff); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); overflow: hidden; }',
     // Enable both axes scrolling and set Firefox scrollbar colors
@@ -20,7 +20,7 @@
     '.table-scroll::-webkit-scrollbar-thumb { background: var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26)); border-radius: 6px; }',
     '.table-scroll::-webkit-scrollbar-thumb:hover { background: var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26)); }',
     'table { width: 100%; border-collapse: collapse; min-width: 1280px; table-layout: fixed; }',
-    'thead th { position: sticky; top: 0; z-index: 3; background: var(--ef-bg2, #f2efdf); color: var(--ef-statusline3, #E66868); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; letter-spacing: 0.01em; border-bottom: 1px solid var(--ef-bg4, #e8e5d5); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05); }',
+    'thead th { position: sticky; top: 0; z-index: 3; background: var(--ef-bg2, #f2efdf); color: var(--ef-statusline3, #E66868); padding: 12px 16px; text-align: left; font-weight: 600; font-size: var(--ef-font-export-th, 13px); letter-spacing: 0.01em; border-bottom: 1px solid var(--ef-bg4, #e8e5d5); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05); }',
     '/* Make both zebra stripes explicit so <td> can inherit a real color */',
     'tbody tr:nth-child(odd) { background: var(--ef-bg0, #ffffff); }',
     'tbody tr:nth-child(even) { background: var(--ef-bg1, #f8f5e4); }',
