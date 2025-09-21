@@ -13,6 +13,9 @@
   const modResolver = getModResolver();
   const shared = modResolver.resolve('../export/shared', 'exportShared') || {};
   const theme = modResolver.resolve('../theme/index', 'theme') || {};
+  // NEW: sticky helpers module (optional at runtime)
+  const stickyMod = modResolver.resolve('../export/htmlSticky', 'exportHtmlSticky') || {};
+  const stylesMod = modResolver.resolve('../export/htmlStyles', 'exportHtmlStyles') || {};
 
   const getColumns = typeof shared.getPersonColumns === 'function'
     ? shared.getPersonColumns.bind(shared)
@@ -40,6 +43,8 @@
           .replace(/'/g, '&#39;');
       };
 
+  // ---------------------------------------------------------------------------
+  // THEME CSS (unchanged)
   const downloadFile = typeof shared.downloadFile === 'function'
     ? shared.downloadFile
     : function (content, filename, mimeType) {
@@ -76,109 +81,21 @@
     return ':root {\n' + lines.join('\n') + '\n}';
   }
 
-  // --- NEW: per-column width map + <colgroup/> renderer --------------------
-  // Tweak these widths as desired; the table uses table-layout: fixed
-  // so the browser respects them and wraps text.
-  const COL_WIDTHS = {
-    // Core
-    name: '180px',
-    profileUrl: '260px',
-    headline: '220px',
-    location: '150px',
-    current: '220px',
-    followers: '120px',
-    urnCode: '160px',
-    about: '520px',
-    // Experience (1–3)
-    exp1_company: '220px',
-    exp1_position: '220px',
-    exp1_duration: '180px',
-    exp1_position_duration: '180px',
-    exp1_description: '360px',
-    exp2_company: '220px',
-    exp2_position: '220px',
-    exp2_duration: '180px',
-    exp2_position_duration: '180px',
-    exp2_description: '360px',
-    exp3_company: '220px',
-    exp3_position: '220px',
-    exp3_duration: '180px',
-    exp3_position_duration: '180px',
-    exp3_description: '360px',
-    // Education (1–3)
-    edu1_institution: '220px',
-    edu1_degree: '180px',
-    edu1_grade: '140px',
-    edu1_description: '280px',
-    edu2_institution: '220px',
-    edu2_degree: '180px',
-    edu2_grade: '140px',
-    edu2_description: '280px',
-    edu3_institution: '220px',
-    edu3_degree: '180px',
-    edu3_grade: '140px',
-    edu3_description: '280px'
-  };
+  // sticky attrs function is provided by sticky module (set at export time).
+  // default no-op so existing code can call it safely.
+  var stickyAttrsFor = function () { return { cls: '', style: '' }; };
 
-  function renderColGroup(columns) {
-    return '<colgroup>' + columns.map(function (c) {
-      var w = COL_WIDTHS[c.key];
-      return w ? '<col style="width:' + w + ';" />' : '<col />';
-    }).join('') + '</colgroup>';
-  }
-
-  // --- NEW: sticky (frozen) columns config ---------------------------------
-  // We freeze "Name" and "Profile URL". Their keys are assumed to be
-  // `name` and `profileUrl` (adjust if your column keys differ).
-  // Offsets are computed from COL_WIDTHS so they always align.
-  const NAME_W = (COL_WIDTHS && COL_WIDTHS.name) || '180px';
-  const STICKY_CONFIG = {
-    name: { idx: 1, left: '0px' },
-    profileUrl: { idx: 2, left: String(parseInt(NAME_W, 10) || 180) + 'px' }
-  };
-
-  function stickyAttrsFor(col) {
-    var s = STICKY_CONFIG[col && col.key];
-    if (!s) return { cls: '', style: '' };
-    return {
-      cls: ' sticky-col sticky-col-' + s.idx,
-      style: 'left:' + s.left + ';'
-    };
-  }
-
-  const BASE_STYLES = [
-    '*, *::before, *::after { box-sizing: border-box; }',
-    'body { margin: 0; background: var(--ef-bg0, #ffffff); color: var(--ef-fg, #1f2933); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.6; }',
-    'a { color: var(--ef-blue, #2563eb); text-decoration: none; }',
-    'a:hover { color: var(--ef-aqua, #14b8a6); text-decoration: underline; }',
-    '.page { padding: 32px clamp(16px, 5vw, 64px) 56px; background: var(--ef-bg0, #ffffff); min-height: 100vh; display: flex; flex-direction: column; gap: 24px; }',
-    '.header { display: flex; flex-direction: column; gap: 4px; }',
-    '.header h1 { margin: 0; font-size: 24px; font-weight: 600; color: var(--ef-blue, #2563eb); }',
-    '.header .meta { margin: 0; color: var(--ef-grey1, #64748b); font-size: 13px; }',
-    '.table-shell { border: 1px solid var(--ef-bg3, #d7d3c5); border-radius: 12px; background: var(--ef-bg0, #ffffff); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); overflow: hidden; }',
-    '.table-scroll { max-height: 70vh; overflow: auto; background: inherit; position: relative; }',
-    '.table-scroll::-webkit-scrollbar { width: 10px; }',
-    '.table-scroll::-webkit-scrollbar-track { background: var(--ef-bg1, #f8f5e4); }',
-    '.table-scroll::-webkit-scrollbar-thumb { background: var(--ef-bg3, #e2e8f0); border-radius: 6px; }',
-    'table { width: 100%; border-collapse: collapse; min-width: 1280px; table-layout: fixed; }',
-    'thead th { position: sticky; top: 0; z-index: 3; background: var(--ef-bg2, #f2efdf); color: var(--ef-statusline3, #f85552); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; letter-spacing: 0.01em; border-bottom: 1px solid var(--ef-bg4, #e8e5d5); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05); }',
-    '/* Make both zebra stripes explicit so <td> can inherit a real color */',
-    'tbody tr:nth-child(odd) { background: var(--ef-bg0, #ffffff); }',
-    'tbody tr:nth-child(even) { background: var(--ef-bg1, #f8f5e4); }',
-    'tbody tr:hover { background: var(--ef-visual, #f0f2d4); }',
-    'td { padding: 12px 16px; border-bottom: 1px solid var(--ef-bg3, #d7d3c5); white-space: pre-wrap; overflow-wrap: anywhere; color: inherit; vertical-align: top; }',
-    'tbody tr:last-child td { border-bottom: none; }',
-    'td.numeric { text-align: right; font-variant-numeric: tabular-nums; }',
-    'td.empty { color: var(--ef-grey1, #64748b); font-style: italic; text-align: center; }',
-    'a.profile-link { word-break: break-word; }',
-    // Sticky columns: keep background in sync with zebra striping and
-    // draw a subtle divider on the right edge.
-    '.sticky-col { position: sticky; z-index: 1; background: inherit; box-shadow: 1px 0 0 rgba(15, 23, 42, 0.06) inset; }',
-    'thead th.sticky-col { z-index: 5; background: var(--ef-bg2, #f2efdf); }',
-    '.export-meta { font-size: 12px; color: var(--ef-grey1, #64748b); }',
-    '@media (max-width: 768px) { .page { padding: 24px 16px 48px; } thead th, td { padding: 10px 12px; } }',
-    '@media print { .page { padding: 24px; box-shadow: none; } .table-shell { box-shadow: none; } .table-scroll { max-height: none; overflow: visible; } thead th { position: static; box-shadow: none; } }'
-  ].join('\n');
+  // Base CSS now lives in src/export/htmlStyles.js
+  const HTML_BASE_CSS = typeof stylesMod.HTML_BASE_CSS === 'string' ? stylesMod.HTML_BASE_CSS : '';
+  const composeExportStyles = (typeof stylesMod.composeExportStyles === 'function')
+    ? stylesMod.composeExportStyles
+    : function (themeCss, stickyCss) {
+        const parts = [];
+        if (themeCss) parts.push(themeCss);
+        if (HTML_BASE_CSS) parts.push(HTML_BASE_CSS);
+        if (stickyCss) parts.push(stickyCss);
+        return parts.join('\n');
+      };
 
   const EN_DASH = '\u2013';
 
@@ -267,11 +184,17 @@
       return;
     }
 
+    // Prepare sticky helpers for this set of columns
+    var stickyHelpers = (stickyMod && typeof stickyMod.createSticky === 'function')
+      ? stickyMod.createSticky(columns)
+      : { colgroup: '', stickyAttrsFor: function(){ return { cls:'', style:'' }; }, css: '' };
+    stickyAttrsFor = stickyHelpers.stickyAttrsFor;
+
     const headers = renderHeaders(columns);
-    const colgroup = renderColGroup(columns);
+    const colgroup = stickyHelpers.colgroup;
     const rows = renderRows(people, columns);
     const themeCss = buildThemeCss();
-    const styles = themeCss ? themeCss + '\n\n' + BASE_STYLES : BASE_STYLES;
+    const styles = composeExportStyles(themeCss, stickyHelpers.css);
     const now = new Date();
     const metaText = people.length + ' profile' + (people.length === 1 ? '' : 's') + ' • exported ' + now.toLocaleString();
 

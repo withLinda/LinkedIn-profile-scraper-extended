@@ -47,6 +47,8 @@ function buildConsoleVersion() {
     const extractor = readModule('src/extractors/linkedin.js');
     const core = readModule('src/core.js');
     const exportShared = readModule('src/export/shared.js');
+    const exportHtmlSticky = readModule('src/export/htmlSticky.js'); // NEW
+    const exportHtmlStyles = readModule('src/export/htmlStyles.js'); // NEW
     const exportCsv = readModule('src/export/csv.js');
     const exportHtml = readModule('src/export/html.js');
     const utils = readModule('src/utils.js');
@@ -113,6 +115,8 @@ function buildConsoleVersion() {
     // Core functionality${injectModule(core)}
 
     // Export shared${injectModule(exportShared)}
+    // Export HTML Sticky${injectModule(exportHtmlSticky)}
+    // Export HTML Styles${injectModule(exportHtmlStyles)}
     // Export CSV${injectModule(exportCsv)}
     // Export HTML${injectModule(exportHtml)}
 
@@ -163,6 +167,8 @@ function buildTampermonkeyVersion() {
     const extractor = readModule('src/extractors/linkedin.js');
     const core = readModule('src/core.js');
     const exportShared = readModule('src/export/shared.js');
+    const exportHtmlSticky = readModule('src/export/htmlSticky.js'); // NEW
+    const exportHtmlStyles = readModule('src/export/htmlStyles.js'); // NEW
     const exportCsv = readModule('src/export/csv.js');
     const exportHtml = readModule('src/export/html.js');
     const utils = readModule('src/utils.js');
@@ -218,6 +224,8 @@ function buildTampermonkeyVersion() {
     // Core functionality${injectModule(core)}
 
     // Export shared${injectModule(exportShared)}
+    // Export HTML Sticky${injectModule(exportHtmlSticky)}
+    // Export HTML Styles${injectModule(exportHtmlStyles)}
     // Export CSV${injectModule(exportCsv)}
     // Export HTML${injectModule(exportHtml)}
 
