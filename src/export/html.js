@@ -82,26 +82,44 @@
     ${cssVars}
     html{ color-scheme: light; }
     * { margin:0; padding:0; box-sizing:border-box; }
-    body{ background:var(--ef-bg0); padding:20px; color:var(--ef-fg); }
+    /* reduce global padding so the export can breathe edge-to-edge */
+    body{ background:var(--ef-bg0); padding:12px 8px; color:var(--ef-fg); }
     .export-scope, .export-scope *{
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;
       color:var(--ef-blue);
       box-sizing:border-box;
     }
     .container{
-      max-width:1400px; margin:0 auto; background:var(--ef-bg1);
-      border:1px solid var(--ef-bg3); border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.4);
-      /* allow inner scrollers to be visible */
-      overflow: visible;
+      /* full-bleed (with small gutters), centered; height fills viewport minus body padding */
+      width: calc(100vw - 16px);
+      margin: 8px auto;
+      background: var(--ef-bg1);
+      border: 1px solid var(--ef-bg3);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+      height: calc(100vh - 24px);
+      display: flex;
+      flex-direction: column;
+      overflow: visible; /* keep inner scroller visible */
     }
     h1{ background:var(--ef-bg0); color:var(--ef-aqua); padding:20px; font-size:24px; }
     .meta{ padding:15px 20px; background:var(--ef-bg0); border-bottom:1px solid var(--ef-bg3); font-size:14px; color:var(--ef-grey1); }
     /* don’t force table to 100% — let it grow and be scrolled */
-    table{ border-collapse:collapse; }
+    table{ border-collapse:collapse; table-layout:fixed; }
     ${scopedBaseCss}
-    /* scroll wrapper for wide tables (overrides base UI which had only overflow-y) */
-    .results-table-container { overflow:auto; max-height:none; background:var(--ef-bg0); }
-    .results-table { width:max-content; min-width:1200px; }
+    /* Table container fills remaining vertical space; scrolls both ways */
+    .results-table-container{
+      background: var(--ef-bg0);
+      /* Override base UI max-height (400px) that leaks in from ui/styles.js */
+      max-height: none;
+      height: auto;
+      overflow: auto;
+      flex: 1 1 auto;
+      min-height: 0; /* allow flex child to expand to fill container height */
+    }
+    /* Stretch to container when narrower, but still grow beyond when needed;
+       make the table itself fill the available height so we don't see empty space */
+    .results-table { width: max(100%, max-content); min-width:1200px; min-height:100%; }
 
     /* Helpful widths for dense text columns */
     .results-table th.col-about, .results-table td.col-about { min-width:420px; }
