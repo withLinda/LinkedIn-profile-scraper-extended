@@ -57,12 +57,14 @@
       if (!value) return '<span class="no-data">-</span>';
       return shared.escapeHTML(String(value));
     };
-    // Add per-column classes so we can size columns in CSS
-    const headerCells = columns.map(c => `<th class="col-${c.key}">${shared.escapeHTML(c.label)}</th>`).join('');
+    // Add per-column classes so we can size long fields and mirror the UI
+    const headerCells = columns
+      .map(c => `<th class="col-${c.key}">${shared.escapeHTML(c.label)}</th>`)
+      .join('');
     const bodyRows = people.map(p => {
       const cells = columns.map(c => {
         const content = renderHtmlCell(p, c);
-        const classes = ['col-' + c.key];
+        const classes = [`col-${c.key}`];
         if (c.key === 'followers') classes.push('followers');
         return `<td class="${classes.join(' ')}">${content}</td>`;
       }).join('');
@@ -83,38 +85,29 @@
     body{ background:var(--ef-bg0); padding:20px; color:var(--ef-fg); }
     .export-scope, .export-scope *{
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,sans-serif;
-      color:var(--ef-fg); /* use body fg for text; accents handled below */
+      color:var(--ef-blue);
       box-sizing:border-box;
     }
     .container{
       max-width:1400px; margin:0 auto; background:var(--ef-bg1);
-      border:1px solid var(--ef-bg3); border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.4); overflow:hidden;
+      border:1px solid var(--ef-bg3); border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.4);
+      /* allow inner scrollers to be visible */
+      overflow: visible;
     }
-    h1{ background:var(--ef-bg0); color:var(--ef-blue); padding:20px; font-size:24px; }
+    h1{ background:var(--ef-bg0); color:var(--ef-aqua); padding:20px; font-size:24px; }
     .meta{ padding:15px 20px; background:var(--ef-bg0); border-bottom:1px solid var(--ef-bg3); font-size:14px; color:var(--ef-grey1); }
-    /* Table container for scroll + visual parity with popup */
-    .results-table-container{ max-height:70vh; overflow:auto; background:var(--ef-bg0); }
-    table{ width:100%; border-collapse:collapse; table-layout:fixed; }
+    /* don’t force table to 100% — let it grow and be scrolled */
+    table{ border-collapse:collapse; }
     ${scopedBaseCss}
-    /* Ensure ellipsis everywhere by default, then override per-column as needed */
-    .results-table th, .results-table td { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .followers{ text-align:right; font-variant-numeric: tabular-nums; color:var(--ef-fg); white-space:nowrap; }
-    /* Column sizing for sanity */
-    .col-name{ width:180px; }
-    .col-profileUrl{ width:260px; }
-    .col-headline{ width:220px; }
-    .col-location{ width:150px; }
-    .col-current{ width:220px; }
-    .col-followers{ width:110px; }
-    .col-urnCode{ width:260px; }
-    /* About column: multi-line clamp instead of single-line ellipsis */
-    .col-about{
-      white-space:normal;
-      line-height:1.35;
-      display:-webkit-box;
-      -webkit-line-clamp:4;
-      -webkit-box-orient:vertical;
-    }
+    /* scroll wrapper for wide tables (overrides base UI which had only overflow-y) */
+    .results-table-container { overflow:auto; max-height:none; background:var(--ef-bg0); }
+    .results-table { width:max-content; min-width:1200px; }
+
+    /* Helpful widths for dense text columns */
+    .results-table th.col-about, .results-table td.col-about { min-width:420px; }
+    .results-table th[class*="col-exp"], .results-table td[class*="col-exp"] { min-width:240px; }
+    .results-table th[class*="col-edu"], .results-table td[class*="col-edu"] { min-width:240px; }
+    .followers{ text-align:right; font-weight:500; color:var(--ef-fg); white-space:nowrap; }
     .no-data{ color:var(--ef-grey1); font-style:italic; }
   </style>
 </head>
@@ -123,7 +116,10 @@
     <h1>LinkedIn Profiles Export</h1>
     <div class="meta"><strong>Export Date:</strong> ${new Date().toLocaleDateString()} | <strong>Total Profiles:</strong> ${people.length}</div>
     <div class="results-table-container">
-      <table class="results-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>
+      <table class="results-table">
+        <thead><tr>${headerCells}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
     </div>
   </div>
 </body>
