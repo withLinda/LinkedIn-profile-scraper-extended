@@ -1,6 +1,7 @@
 (function(){
   'use strict';
 
+  // NOTE: this patch adds promo/highlight filters to avoid false Education matches.
   function getModResolver(){
     if (typeof module!=='undefined' && module.exports){
       try { return require('../shared/modResolver'); } catch(_) { /* ignore */ }
@@ -85,6 +86,44 @@
     return null;
   }
 
+  // --- NEW: filters to exclude Sales Navigator highlights / upsell / media cards ---
+  const DISALLOWED_CONTROL_NAMES = new Set([
+    'highlights_sn_recent_posts_on_linkedin',
+    'sales_navigator_profile_highlights_upsell_click',
+    'experience_company_logo',                      // not education
+    'entity_image_licenses_and_certifications',     // not education
+    'entity_image_volunteer_experiences',           // not education
+    'experience_media',                             // not education
+    'experience_media_roll_up'                      // not education
+  ]);
+
+  function hasDisallowedControl(node){
+    const cn =
+      get(node, 'components.entityComponent.controlName') ||
+      get(node, 'controlName') || '';
+    return typeof cn === 'string' && DISALLOWED_CONTROL_NAMES.has(cn);
+  }
+
+  // Typical promo strings we saw in highlight cards.
+  const PROMO_RE = /(recently posted on linkedin|free insight from sales navigator|understand what topics .* posts)/i;
+
+  function isPromoOrHighlight(node){
+    if (hasDisallowedControl(node)) return true;
+    const textBlob = [
+      get(node, 'components.entityComponent.titleV2.text.accessibilityText'),
+      get(node, 'components.entityComponent.subtitle.accessibilityText'),
+      get(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText'),
+      get(node, 'subtitle.accessibilityText'),
+      get(node, 'titleV2.text.accessibilityText')
+    ].filter(Boolean).join(' ');
+    if (PROMO_RE.test(String(textBlob))) return true;
+    const upsell = get(node, 'textActionTarget') || '';
+    if (typeof upsell === 'string' && /sales_navigator_profile_highlights_upsell/i.test(upsell)) return true;
+    // presence of premiumUpsellComponent in the subtree/siblings is also a strong signal
+    if (get(node, 'components.premiumUpsellComponent')) return true;
+    return false;
+  }
+
   // ---- Heuristics for locating sections
   function pickAboutText(included){
     // Find any reasonably long textComponent within a "card"/"topComponents" subtree
@@ -96,7 +135,8 @@
         const text = get(n, 'textComponent.text.accessibilityText') || get(n, 'text.text.accessibilityText');
         if (typeof text === 'string') {
           const t = text.trim();
-          if (t && t.length >= 40) bucket.push(t);
+          // Avoid Sales Navigator highlight/upsell copy
+          if (t && t.length >= 40 && !PROMO_RE.test(t)) bucket.push(t);
         }
       });
       if (bucket.length) texts.push(bucket.sort((a,b)=>b.length-a.length)[0]);
@@ -125,6 +165,8 @@
     return !!get(node, 'components.entityComponent.subComponents.components.0.components.entityComponent.titleV2.text.accessibilityText');
   }
   function looksLikeEducationEntity(node){
+    // Exclude Sales Navigator highlights / upsell and other non-education entities early
+    if (isPromoOrHighlight(node)) return false;
     const hasDegreeOrSub = !!firstNonEmpty(
       get(node, 'components.entityComponent.subtitle.accessibilityText'),
       get(node, 'components.entityComponent.titleV2.text.accessibilityText')
@@ -155,11 +197,16 @@
   function parseEducationFromList(list){
     const out = [];
     for (const node of list){
+      // Skip highlights/upsell/media cards outright
+      if (isPromoOrHighlight(node)) continue;
       const institutionName = get(node, 'components.entityComponent.titleV2.text.accessibilityText') || null;
       const degree          = get(node, 'components.entityComponent.subtitle.accessibilityText') || null;
       const grade           = get(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText') || null;
       const educationDescription = get(node, 'components.entityComponent.subComponents.components.1.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText') || null;
 
+      // Guard against promo copy parsed as education fields
+      const text = [institutionName, degree, grade, educationDescription].filter(Boolean).join(' ');
+      if (PROMO_RE.test(text)) continue;
       if (!firstNonEmpty(institutionName, degree, grade, educationDescription)) continue;
       out.push({ institutionName, degree, grade, educationDescription });
       if (out.length >= 3) break; // only first 3
