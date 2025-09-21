@@ -44,12 +44,12 @@ A browser-based LinkedIn profile scraper that enriches people search results wit
 **Most reliable path. No extensions, no installs.**
 
 1. **Go to a LinkedIn people search page**  
-   Example: `https://www.linkedin.com/search/results/people/?keywords=product%20manager`
+   Example: [https://www.linkedin.com/search/results/people/?keywords=product%20manager](https://www.linkedin.com/search/results/people/?keywords=product%20manager)
 2. **Open DevTools → Console**  
    `F12` (Windows) · `⌥⌘I` (macOS) → choose the **Console** tab
 3. **Load the script**  
    Open the raw file, select all, copy:
-   `https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-extended/main/build/console.js`
+   [https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-extended/main/build/console.js](https://raw.githubusercontent.com/withLinda/LinkedIn-profile-scraper-extended/main/build/console.js)
 4. **Paste & run**  
    Paste into the Console, hit **Enter**, then enter a target profile count when prompted
 5. **Monitor progress**  
