@@ -81,7 +81,8 @@
             const utilsModule = getUtilsModule();
             return {
                 csv: getExportHandler(utilsModule, 'exportToCsv'),
-                html: getExportHandler(utilsModule, 'exportToHtml')
+                html: getExportHandler(utilsModule, 'exportToHtml'),
+                json: getExportHandler(utilsModule, 'exportToJson')
             };
         }
         
@@ -202,11 +203,23 @@
                 if (html) { html(this.people); }
                 else { this.showError('Export to HTML is not available yet.'); }
             };
-            
+
+            const jsonButton = document.createElement('button');
+            jsonButton.className = 'export-button';
+            jsonButton.dataset.exportType = 'json';
+            jsonButton.textContent = 'Export JSON';
+            jsonButton.disabled = true;
+            jsonButton.onclick = () => {
+                const { json } = this.resolveHandlers();
+                if (json) { json(this.people); }
+                else { this.showError('Export to JSON is not available yet.'); }
+            };
+
             exportSection.appendChild(csvButton);
             exportSection.appendChild(htmlButton);
-            
-            this.exportButtons = [csvButton, htmlButton];
+            exportSection.appendChild(jsonButton);
+
+            this.exportButtons = [csvButton, htmlButton, jsonButton];
             this.container.appendChild(exportSection);
             
             this.errorMessage = document.createElement('div');
@@ -305,9 +318,13 @@
         
         enableExport(people) {
             if (people) this.people = people;
-            const { csv, html } = this.resolveHandlers();
+            const { csv, html, json } = this.resolveHandlers();
             this.exportButtons.forEach(btn => {
-                btn.disabled = btn.dataset.exportType === 'csv' ? !csv : !html;
+                const type = btn.dataset.exportType;
+                const available =
+                    type === 'csv' ? !!csv :
+                    type === 'html' ? !!html : !!json;
+                btn.disabled = !available;
             });
         }
         

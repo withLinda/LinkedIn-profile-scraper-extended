@@ -44,35 +44,14 @@
             { key: 'urnCode', label: 'URN Code' },
             // ---- Profile enrichment (About)
             { key: 'about', label: 'About' },
-            // ---- Experience (first 3)
-            { key: 'exp1_company', label: 'Experience 1 - Company' },
-            { key: 'exp1_position', label: 'Experience 1 - Position' },
-            { key: 'exp1_duration', label: 'Experience 1 - Company Duration' },
-            { key: 'exp1_position_duration', label: 'Experience 1 - Position Duration' },
-            { key: 'exp1_description', label: 'Experience 1 - Description' },
-            { key: 'exp2_company', label: 'Experience 2 - Company' },
-            { key: 'exp2_position', label: 'Experience 2 - Position' },
-            { key: 'exp2_duration', label: 'Experience 2 - Company Duration' },
-            { key: 'exp2_position_duration', label: 'Experience 2 - Position Duration' },
-            { key: 'exp2_description', label: 'Experience 2 - Description' },
-            { key: 'exp3_company', label: 'Experience 3 - Company' },
-            { key: 'exp3_position', label: 'Experience 3 - Position' },
-            { key: 'exp3_duration', label: 'Experience 3 - Company Duration' },
-            { key: 'exp3_position_duration', label: 'Experience 3 - Position Duration' },
-            { key: 'exp3_description', label: 'Experience 3 - Description' },
-            // ---- Education (first 3)
-            { key: 'edu1_institution', label: 'Education 1 - Institution' },
-            { key: 'edu1_degree', label: 'Education 1 - Degree' },
-            { key: 'edu1_grade', label: 'Education 1 - Grade' },
-            { key: 'edu1_description', label: 'Education 1 - Description' },
-            { key: 'edu2_institution', label: 'Education 2 - Institution' },
-            { key: 'edu2_degree', label: 'Education 2 - Degree' },
-            { key: 'edu2_grade', label: 'Education 2 - Grade' },
-            { key: 'edu2_description', label: 'Education 2 - Description' },
-            { key: 'edu3_institution', label: 'Education 3 - Institution' },
-            { key: 'edu3_degree', label: 'Education 3 - Degree' },
-            { key: 'edu3_grade', label: 'Education 3 - Grade' },
-            { key: 'edu3_description', label: 'Education 3 - Description' }
+            // ---- Experience (merged 1–3)
+            { key: 'exp1', label: 'Experience 1' },
+            { key: 'exp2', label: 'Experience 2' },
+            { key: 'exp3', label: 'Experience 3' },
+            // ---- Education (merged 1–3)
+            { key: 'edu1', label: 'Education 1' },
+            { key: 'edu2', label: 'Education 2' },
+            { key: 'edu3', label: 'Education 3' }
         ];
     
         const linkedinSchemaModule = { PERSON_COLUMNS };
@@ -113,7 +92,14 @@
             '--ef-scrollbar-thumb': 'var(--ef-orange)',
             '--ef-scrollbar-track': 'var(--ef-bg1)',
             // UI surface with slight translucency; falls back to bg0 if missing
-            '--ef-panel-bg': 'rgba(255, 251, 239, 0.98)'
+            '--ef-panel-bg': 'rgba(255, 251, 239, 0.98)',
+            // === Font size tokens (NEW) ===
+            // Exported HTML
+            '--ef-font-export-h1': '24px',
+            '--ef-font-export-th': '13px',
+            // In-page UI
+            '--ef-font-ui-title': '18px',
+            '--ef-font-ui-th': '13px'
         };
     
         const themeTokensModule = {
@@ -499,6 +485,7 @@
     (function(){
       'use strict';
     
+      // NOTE: this patch adds promo/highlight filters to avoid false Education matches.
       function getModResolver(){
         if (typeof module!=='undefined' && module.exports){
           try { return require('../shared/modResolver'); } catch(_) { /* ignore */ }
@@ -583,6 +570,44 @@
         return null;
       }
     
+      // --- NEW: filters to exclude Sales Navigator highlights / upsell / media cards ---
+      const DISALLOWED_CONTROL_NAMES = new Set([
+        'highlights_sn_recent_posts_on_linkedin',
+        'sales_navigator_profile_highlights_upsell_click',
+        'experience_company_logo',                      // not education
+        'entity_image_licenses_and_certifications',     // not education
+        'entity_image_volunteer_experiences',           // not education
+        'experience_media',                             // not education
+        'experience_media_roll_up'                      // not education
+      ]);
+    
+      function hasDisallowedControl(node){
+        const cn =
+          get(node, 'components.entityComponent.controlName') ||
+          get(node, 'controlName') || '';
+        return typeof cn === 'string' && DISALLOWED_CONTROL_NAMES.has(cn);
+      }
+    
+      // Typical promo strings we saw in highlight cards.
+      const PROMO_RE = /(recently posted on linkedin|free insight from sales navigator|understand what topics .* posts)/i;
+    
+      function isPromoOrHighlight(node){
+        if (hasDisallowedControl(node)) return true;
+        const textBlob = [
+          get(node, 'components.entityComponent.titleV2.text.accessibilityText'),
+          get(node, 'components.entityComponent.subtitle.accessibilityText'),
+          get(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText'),
+          get(node, 'subtitle.accessibilityText'),
+          get(node, 'titleV2.text.accessibilityText')
+        ].filter(Boolean).join(' ');
+        if (PROMO_RE.test(String(textBlob))) return true;
+        const upsell = get(node, 'textActionTarget') || '';
+        if (typeof upsell === 'string' && /sales_navigator_profile_highlights_upsell/i.test(upsell)) return true;
+        // presence of premiumUpsellComponent in the subtree/siblings is also a strong signal
+        if (get(node, 'components.premiumUpsellComponent')) return true;
+        return false;
+      }
+    
       // ---- Heuristics for locating sections
       function pickAboutText(included){
         // Find any reasonably long textComponent within a "card"/"topComponents" subtree
@@ -594,7 +619,8 @@
             const text = get(n, 'textComponent.text.accessibilityText') || get(n, 'text.text.accessibilityText');
             if (typeof text === 'string') {
               const t = text.trim();
-              if (t && t.length >= 40) bucket.push(t);
+              // Avoid Sales Navigator highlight/upsell copy
+              if (t && t.length >= 40 && !PROMO_RE.test(t)) bucket.push(t);
             }
           });
           if (bucket.length) texts.push(bucket.sort((a,b)=>b.length-a.length)[0]);
@@ -623,6 +649,8 @@
         return !!get(node, 'components.entityComponent.subComponents.components.0.components.entityComponent.titleV2.text.accessibilityText');
       }
       function looksLikeEducationEntity(node){
+        // Exclude Sales Navigator highlights / upsell and other non-education entities early
+        if (isPromoOrHighlight(node)) return false;
         const hasDegreeOrSub = !!firstNonEmpty(
           get(node, 'components.entityComponent.subtitle.accessibilityText'),
           get(node, 'components.entityComponent.titleV2.text.accessibilityText')
@@ -653,11 +681,16 @@
       function parseEducationFromList(list){
         const out = [];
         for (const node of list){
+          // Skip highlights/upsell/media cards outright
+          if (isPromoOrHighlight(node)) continue;
           const institutionName = get(node, 'components.entityComponent.titleV2.text.accessibilityText') || null;
           const degree          = get(node, 'components.entityComponent.subtitle.accessibilityText') || null;
           const grade           = get(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText') || null;
           const educationDescription = get(node, 'components.entityComponent.subComponents.components.1.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText') || null;
     
+          // Guard against promo copy parsed as education fields
+          const text = [institutionName, degree, grade, educationDescription].filter(Boolean).join(' ');
+          if (PROMO_RE.test(text)) continue;
           if (!firstNonEmpty(institutionName, degree, grade, educationDescription)) continue;
           out.push({ institutionName, degree, grade, educationDescription });
           if (out.length >= 3) break; // only first 3
@@ -1062,8 +1095,47 @@
       }
     
       // --- Value accessors ------------------------------------------------------
+      function joinNonEmptyLines(parts) {
+        return parts
+          .map(function (part) {
+            var text = part == null ? '' : String(part).trim();
+            return text ? text : null;
+          })
+          .filter(Boolean)
+          .join('\n');
+      }
+    
+      function makeExperienceString(person, idx) {
+        var prefix = 'exp' + idx + '_';
+        return joinNonEmptyLines([
+          person[prefix + 'company'],
+          person[prefix + 'duration'],
+          person[prefix + 'position'],
+          person[prefix + 'position_duration'],
+          person[prefix + 'description']
+        ]);
+      }
+    
+      function makeEducationString(person, idx) {
+        var prefix = 'edu' + idx + '_';
+        return joinNonEmptyLines([
+          person[prefix + 'institution'],
+          person[prefix + 'degree'],
+          person[prefix + 'grade'],
+          person[prefix + 'description']
+        ]);
+      }
+    
       function getCsvValue(person, key) {
         if (!person) return '';
+        if (/^exp[1-3]$/.test(key)) {
+          var expIndex = Number(key.replace('exp', ''));
+          return makeExperienceString(person, expIndex);
+        }
+        if (/^edu[1-3]$/.test(key)) {
+          var eduIndex = Number(key.replace('edu', ''));
+          return makeEducationString(person, eduIndex);
+        }
         if (key === 'followers') {
           const f = person.followers;
           if (typeof f === 'string') return f;
@@ -1076,6 +1148,16 @@
     
       function getDisplayValue(person, key) {
         if (!person) return '';
+        if (/^exp[1-3]$/.test(key)) {
+          var expIndex = Number(key.replace('exp', ''));
+          var expValue = makeExperienceString(person, expIndex);
+          return expValue ? expValue : null;
+        }
+        if (/^edu[1-3]$/.test(key)) {
+          var eduIndex = Number(key.replace('edu', ''));
+          var eduValue = makeEducationString(person, eduIndex);
+          return eduValue ? eduValue : null;
+        }
         if (key === 'followers') {
           const f = person.followers;
           if (typeof f === 'string' && f.trim()) return f;
@@ -1178,6 +1260,9 @@
         urnCode: '160px',
         about: '520px',
         // Experience (1–3)
+        exp1: '520px',
+        exp2: '520px',
+        exp3: '520px',
         exp1_company: '220px',
         exp1_position: '220px',
         exp1_duration: '180px',
@@ -1194,6 +1279,9 @@
         exp3_position_duration: '180px',
         exp3_description: '360px',
         // Education (1–3)
+        edu1: '420px',
+        edu2: '420px',
+        edu3: '420px',
         edu1_institution: '220px',
         edu1_degree: '180px',
         edu1_grade: '140px',
@@ -1297,7 +1385,7 @@
         'a:hover { color: var(--ef-aqua, #35A77C); text-decoration: underline; }',
         '.page { padding: 32px clamp(16px, 5vw, 64px) 56px; background: var(--ef-bg0, #ffffff); min-height: 100vh; display: flex; flex-direction: column; gap: 24px; }',
         '.header { display: flex; flex-direction: column; gap: 4px; }',
-        '.header h1 { margin: 0; font-size: 24px; font-weight: 600; color: var(--ef-blue, #3A94C5); }',
+        '.header h1 { margin: 0; font-size: var(--ef-font-export-h1, 24px); font-weight: 600; color: var(--ef-blue, #3A94C5); }',
         '.header .meta { margin: 0; color: var(--ef-grey1, #939F91); font-size: 13px; }',
         '.table-shell { border: 1px solid var(--ef-bg3, #d7d3c5); border-radius: 12px; background: var(--ef-bg0, #ffffff); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); overflow: hidden; }',
         // Enable both axes scrolling and set Firefox scrollbar colors
@@ -1308,7 +1396,7 @@
         '.table-scroll::-webkit-scrollbar-thumb { background: var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26)); border-radius: 6px; }',
         '.table-scroll::-webkit-scrollbar-thumb:hover { background: var(--ef-scrollbar-thumb, var(--ef-orange, #F57D26)); }',
         'table { width: 100%; border-collapse: collapse; min-width: 1280px; table-layout: fixed; }',
-        'thead th { position: sticky; top: 0; z-index: 3; background: var(--ef-bg2, #f2efdf); color: var(--ef-statusline3, #E66868); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; letter-spacing: 0.01em; border-bottom: 1px solid var(--ef-bg4, #e8e5d5); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05); }',
+        'thead th { position: sticky; top: 0; z-index: 3; background: var(--ef-bg2, #f2efdf); color: var(--ef-statusline3, #E66868); padding: 12px 16px; text-align: left; font-weight: 600; font-size: var(--ef-font-export-th, 13px); letter-spacing: 0.01em; border-bottom: 1px solid var(--ef-bg4, #e8e5d5); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05); }',
         '/* Make both zebra stripes explicit so <td> can inherit a real color */',
         'tbody tr:nth-child(odd) { background: var(--ef-bg0, #ffffff); }',
         'tbody tr:nth-child(even) { background: var(--ef-bg1, #f8f5e4); }',
@@ -1679,6 +1767,104 @@
       if (typeof window !== 'undefined') window.exportToHtml = exportToHtml;
     })();
 
+    // Export JSON
+    ;
+    (function(){
+      'use strict';
+    
+      function getModResolver(){
+        if (typeof module!=='undefined' && module.exports){
+          try { return require('../shared/modResolver'); } catch(_) { /* ignore */ }
+        }
+        const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+        const mods = root.LinkedInScraperModules || {};
+        return mods.modResolver || { resolve: function(){ return {}; } };
+      }
+    
+      const modResolver = getModResolver();
+      const shared = modResolver.resolve('../export/shared', 'exportShared') || {};
+    
+      const getColumns = typeof shared.getPersonColumns === 'function'
+        ? shared.getPersonColumns.bind(shared)
+        : function(){ return []; };
+    
+      const getDisplayValue = typeof shared.getDisplayValue === 'function'
+        ? shared.getDisplayValue.bind(shared)
+        : function(person, key){
+            if (!person) return null;
+            const value = person[key];
+            if (value == null) return null;
+            const text = String(value).trim();
+            return text ? text : null;
+          };
+    
+      const downloadFile = typeof shared.downloadFile === 'function'
+        ? shared.downloadFile
+        : function(content, filename, mimeType){
+            if (typeof document === 'undefined') return;
+            const blob = new Blob([content], { type: mimeType || 'application/json;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(function(){
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+            }, 100);
+          };
+    
+      function exportToJson(people){
+        if (!Array.isArray(people) || people.length === 0) {
+          if (typeof alert === 'function') alert('No data to export');
+          return;
+        }
+    
+        const columns = getColumns();
+        if (!Array.isArray(columns) || columns.length === 0) {
+          if (typeof alert === 'function') alert('No columns available for export');
+          return;
+        }
+    
+        const rows = people.map(function(person){
+          const row = {};
+          columns.forEach(function(column){
+            row[column.key] = getDisplayValue(person, column.key);
+          });
+          return row;
+        });
+    
+        const payload = {
+          columns: columns.map(function(column){
+            return {
+              key: column.key,
+              label: column.label != null ? column.label : column.key
+            };
+          }),
+          count: rows.length,
+          generatedAt: new Date().toISOString(),
+          rows: rows
+        };
+    
+        const jsonContent = JSON.stringify(payload, null, 2);
+        const timestamp = new Date().toISOString().split('T')[0];
+        downloadFile(jsonContent, 'linkedin_profiles_' + timestamp + '.json', 'application/json;charset=utf-8');
+      }
+    
+      const mod = { exportToJson };
+    
+      if (typeof module!=='undefined' && module.exports) {
+        module.exports = mod;
+      }
+    
+      const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+      root.LinkedInScraperModules = root.LinkedInScraperModules || {};
+      root.LinkedInScraperModules.exportJson = mod;
+    
+      if (typeof window!=='undefined') window.exportToJson = exportToJson;
+    })();
+
 
     // Export utilities
     ;
@@ -1728,9 +1914,21 @@
             const mods = root.LinkedInScraperModules || {};
             return mods.exportHtml || {};
         }
+        function getExportJson() {
+            const res = getResolver();
+            if (res && res.resolve) return res.resolve('./export/json','exportJson');
+            if (typeof module !== 'undefined' && module.exports) {
+                try { return require('./export/json'); } catch (e) { return {}; }
+            }
+            const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+            const mods = root.LinkedInScraperModules || {};
+            return mods.exportJson || {};
+        }
     
         const utilsModule = {
             getPersonColumns: shared.getPersonColumns,
+            // Expose exporter display helper so UI can reuse merged column formatting.
+            getDisplayValue: shared.getDisplayValue,
             downloadFile,
             // Surface escapers for callers that used to import from utils
             escapeHTML: shared.escapeHTML,
@@ -1738,7 +1936,8 @@
             escapeHtml: shared.escapeHTML,
             // Back-compat re-exports so UI keeps working
             exportToCsv: getExportCsv().exportToCsv || null,
-            exportToHtml: getExportHtml().exportToHtml || null
+            exportToHtml: getExportHtml().exportToHtml || null,
+            exportToJson: getExportJson().exportToJson || null
         };
     
         if (typeof module !== 'undefined' && module.exports) {
@@ -1755,8 +1954,10 @@
         if (typeof window !== 'undefined') {
             const csv = getExportCsv().exportToCsv;
             const html = getExportHtml().exportToHtml;
+            const json = getExportJson().exportToJson;
             if (typeof csv === 'function') window.exportToCsv = csv;
             if (typeof html === 'function') window.exportToHtml = html;
+            if (typeof json === 'function') window.exportToJson = json;
             window.downloadFile = downloadFile;
         }
     
@@ -1803,7 +2004,7 @@
             }
     
             .scraper-title {
-                font-size: 18px;
+                font-size: var(--ef-font-ui-title, 18px);
                 font-weight: 600;
                 color: var(--ef-blue);
             }
@@ -1883,6 +2084,7 @@
                 z-index: 1;
                 color: var(--ef-statusline3);
                 border-bottom: 1px solid var(--ef-bg4);
+                font-size: var(--ef-font-ui-th, 13px);
             }
             .results-table td {
                 padding: 8px 12px;
@@ -2088,7 +2290,8 @@
                 const utilsModule = getUtilsModule();
                 return {
                     csv: getExportHandler(utilsModule, 'exportToCsv'),
-                    html: getExportHandler(utilsModule, 'exportToHtml')
+                    html: getExportHandler(utilsModule, 'exportToHtml'),
+                    json: getExportHandler(utilsModule, 'exportToJson')
                 };
             }
             
@@ -2209,11 +2412,23 @@
                     if (html) { html(this.people); }
                     else { this.showError('Export to HTML is not available yet.'); }
                 };
-                
+    
+                const jsonButton = document.createElement('button');
+                jsonButton.className = 'export-button';
+                jsonButton.dataset.exportType = 'json';
+                jsonButton.textContent = 'Export JSON';
+                jsonButton.disabled = true;
+                jsonButton.onclick = () => {
+                    const { json } = this.resolveHandlers();
+                    if (json) { json(this.people); }
+                    else { this.showError('Export to JSON is not available yet.'); }
+                };
+    
                 exportSection.appendChild(csvButton);
                 exportSection.appendChild(htmlButton);
-                
-                this.exportButtons = [csvButton, htmlButton];
+                exportSection.appendChild(jsonButton);
+    
+                this.exportButtons = [csvButton, htmlButton, jsonButton];
                 this.container.appendChild(exportSection);
                 
                 this.errorMessage = document.createElement('div');
@@ -2241,7 +2456,12 @@
     
             createCellForColumn(column, person) {
                 const cell = document.createElement('td');
-                const value = person ? person[column.key] : null;
+                // Use exporter display rules so merged experience/education columns render.
+                const value = person
+                    ? (typeof utilsModule.getDisplayValue === 'function'
+                        ? utilsModule.getDisplayValue(person, column.key)
+                        : person[column.key])
+                    : null;
     
                 if (column.key === 'profileUrl') {
                     if (value) {
@@ -2307,9 +2527,13 @@
             
             enableExport(people) {
                 if (people) this.people = people;
-                const { csv, html } = this.resolveHandlers();
+                const { csv, html, json } = this.resolveHandlers();
                 this.exportButtons.forEach(btn => {
-                    btn.disabled = btn.dataset.exportType === 'csv' ? !csv : !html;
+                    const type = btn.dataset.exportType;
+                    const available =
+                        type === 'csv' ? !!csv :
+                        type === 'html' ? !!html : !!json;
+                    btn.disabled = !available;
                 });
             }
             

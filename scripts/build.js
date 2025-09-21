@@ -43,6 +43,7 @@ function buildConsoleVersion() {
     const exportHtmlStyles = readModule('src/export/htmlStyles.js'); // NEW
     const exportCsv = readModule('src/export/csv.js');
     const exportHtml = readModule('src/export/html.js');
+    const exportJson = readModule('src/export/json.js');
     const utils = readModule('src/utils.js');
     const uiStyles = readModule('src/ui/styles.js');
     const ui = readModule('src/ui.js');
@@ -57,7 +58,7 @@ function buildConsoleVersion() {
  * 4. Press Enter
  * 5. Enter number of profiles to scrape when prompted
  * 6. Wait for scraping to complete
- * 7. Click Export CSV or Export HTML buttons
+ * 7. Click Export CSV / Export HTML / Export JSON buttons
  * 
  * REQUIREMENTS:
  * - Must be on linkedin.com/search/results/people page
@@ -66,7 +67,7 @@ function buildConsoleVersion() {
  * FEATURES:
  * - Scrapes profile data from LinkedIn search results
  * - Handles rate limiting automatically
- * - Exports to CSV or HTML format
+ * - Exports to CSV, HTML, or JSON format
  * - Shows real-time progress
  */
 
@@ -111,6 +112,7 @@ function buildConsoleVersion() {
     // Export HTML Styles${injectModule(exportHtmlStyles)}
     // Export CSV${injectModule(exportCsv)}
     // Export HTML${injectModule(exportHtml)}
+    // Export JSON${injectModule(exportJson)}
 
     // Export utilities${injectModule(utils)}
 
@@ -163,6 +165,7 @@ function buildTampermonkeyVersion() {
     const exportHtmlStyles = readModule('src/export/htmlStyles.js'); // NEW
     const exportCsv = readModule('src/export/csv.js');
     const exportHtml = readModule('src/export/html.js');
+    const exportJson = readModule('src/export/json.js');
     const utils = readModule('src/utils.js');
     const uiStyles = readModule('src/ui/styles.js');
     const ui = readModule('src/ui.js');
@@ -222,6 +225,7 @@ function buildTampermonkeyVersion() {
     // Export HTML Styles${injectModule(exportHtmlStyles)}
     // Export CSV${injectModule(exportCsv)}
     // Export HTML${injectModule(exportHtml)}
+    // Export JSON${injectModule(exportJson)}
 
     // Export utilities${injectModule(utils)}
 

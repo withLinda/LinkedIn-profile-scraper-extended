@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1 — 2025-09-22
+
+Highlights
+- New: `src/export/json.js` (JSON export)
+- Updated: `src/utils.js`, `src/ui.js`, `scripts/build.js` to wire JSON exporter and UI button
+
+Changed Files
+- New: `src/export/json.js`
+- Updated: `scripts/build.js`
+- Updated: `src/ui.js`
+- Updated: `src/utils.js`
+
 ## 1.0 — 2025-09-20
 
 Release tag: `1.0` (commit `ee310b9`).
@@ -23,4 +35,3 @@ Changed Files
 - New: `src/shared/modResolver.js`
 - Updated: `src/ui.js`
 - Updated: `src/utils.js`
-

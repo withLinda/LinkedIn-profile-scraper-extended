@@ -16,13 +16,9 @@ MDdocs/tampermonkey-checklist.md
 MDdocs/test-minimal.user.js
 MDdocs/commit-message.txt
 
-image-for-readme/
 repomix-output.xml
 .codex/
 
 
 # Temporary ignore during development
-INSTALL.md
-README.md
 docs/
-build/

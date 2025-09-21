@@ -44,6 +44,16 @@
         const mods = root.LinkedInScraperModules || {};
         return mods.exportHtml || {};
     }
+    function getExportJson() {
+        const res = getResolver();
+        if (res && res.resolve) return res.resolve('./export/json','exportJson');
+        if (typeof module !== 'undefined' && module.exports) {
+            try { return require('./export/json'); } catch (e) { return {}; }
+        }
+        const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+        const mods = root.LinkedInScraperModules || {};
+        return mods.exportJson || {};
+    }
 
     const utilsModule = {
         getPersonColumns: shared.getPersonColumns,
@@ -56,7 +66,8 @@
         escapeHtml: shared.escapeHTML,
         // Back-compat re-exports so UI keeps working
         exportToCsv: getExportCsv().exportToCsv || null,
-        exportToHtml: getExportHtml().exportToHtml || null
+        exportToHtml: getExportHtml().exportToHtml || null,
+        exportToJson: getExportJson().exportToJson || null
     };
 
     if (typeof module !== 'undefined' && module.exports) {
@@ -73,8 +84,10 @@
     if (typeof window !== 'undefined') {
         const csv = getExportCsv().exportToCsv;
         const html = getExportHtml().exportToHtml;
+        const json = getExportJson().exportToJson;
         if (typeof csv === 'function') window.exportToCsv = csv;
         if (typeof html === 'function') window.exportToHtml = html;
+        if (typeof json === 'function') window.exportToJson = json;
         window.downloadFile = downloadFile;
     }
 
