@@ -1,84 +1,234 @@
-(function(){
+(function () {
   'use strict';
 
-  function getResolver(){
-    if (typeof module!=='undefined' && module.exports) {
-      try { return require('../shared/modResolver'); } catch(_) { return null; }
+  function getModResolver() {
+    if (typeof module !== 'undefined' && module.exports) {
+      try { return require('../shared/modResolver'); } catch (_) { /* ignore */ }
     }
-    const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
-    return (r.LinkedInScraperModules||{}).modResolver || null;
+    const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
+    const mods = root.LinkedInScraperModules || {};
+    return mods.modResolver || { resolve: function () { return {}; } };
   }
 
-  function getShared(){
-    const res=getResolver();
-    if (res && res.resolve) return res.resolve('../export/shared','exportShared');
-    try { if (typeof module!=='undefined' && module.exports) return require('./shared'); } catch(_) {}
-    const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-    return (root.LinkedInScraperModules||{}).exportShared || {};
+  const modResolver = getModResolver();
+  const shared = modResolver.resolve('../export/shared', 'exportShared') || {};
+  const theme = modResolver.resolve('../theme/index', 'theme') || {};
+
+  const getColumns = typeof shared.getPersonColumns === 'function'
+    ? shared.getPersonColumns.bind(shared)
+    : function () { return []; };
+
+  const getDisplayValue = typeof shared.getDisplayValue === 'function'
+    ? shared.getDisplayValue.bind(shared)
+    : function (person, key) {
+        if (!person) return null;
+        const value = person[key];
+        if (value == null) return null;
+        const text = String(value).trim();
+        return text ? text : null;
+      };
+
+  const escapeHTML = typeof shared.escapeHTML === 'function'
+    ? function (value) { return shared.escapeHTML(value); }
+    : function (value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      };
+
+  const downloadFile = typeof shared.downloadFile === 'function'
+    ? shared.downloadFile
+    : function (content, filename, mimeType) {
+        if (typeof document === 'undefined') return;
+        const blob = new Blob([content], { type: mimeType || 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(function () {
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }, 100);
+      };
+
+  const fallbackTokens = (theme && theme.DEFAULT_THEME) ? theme.DEFAULT_THEME : {};
+  function getThemeTokens() {
+    if (theme && typeof theme.getActiveTokens === 'function') {
+      try {
+        const tokens = theme.getActiveTokens();
+        if (tokens && typeof tokens === 'object') return tokens;
+      } catch (_) { /* ignore */ }
+    }
+    return fallbackTokens;
   }
 
-  const shared = getShared();
+  function buildThemeCss() {
+    const tokens = getThemeTokens();
+    const entries = Object.entries(tokens || {});
+    if (!entries.length) return '';
+    const lines = entries.map(function ([key, value]) { return '  ' + key + ': ' + value + ';'; });
+    return ':root {\n' + lines.join('\n') + '\n}';
+  }
+
+  const BASE_STYLES = [
+    '*, *::before, *::after { box-sizing: border-box; }',
+    'body { margin: 0; background: var(--ef-bg0, #ffffff); color: var(--ef-fg, #1f2933); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.6; }',
+    'a { color: var(--ef-blue, #2563eb); text-decoration: none; }',
+    'a:hover { color: var(--ef-aqua, #14b8a6); text-decoration: underline; }',
+    '.page { padding: 32px clamp(16px, 5vw, 64px) 56px; background: var(--ef-bg0, #ffffff); min-height: 100vh; display: flex; flex-direction: column; gap: 24px; }',
+    '.header { display: flex; flex-direction: column; gap: 4px; }',
+    '.header h1 { margin: 0; font-size: 24px; font-weight: 600; color: var(--ef-blue, #2563eb); }',
+    '.header .meta { margin: 0; color: var(--ef-grey1, #64748b); font-size: 13px; }',
+    '.table-shell { border: 1px solid var(--ef-bg3, #d7d3c5); border-radius: 12px; background: var(--ef-bg0, #ffffff); box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); overflow: hidden; }',
+    '.table-scroll { max-height: 70vh; overflow: auto; background: inherit; }',
+    '.table-scroll::-webkit-scrollbar { width: 10px; }',
+    '.table-scroll::-webkit-scrollbar-track { background: var(--ef-bg1, #f8f5e4); }',
+    '.table-scroll::-webkit-scrollbar-thumb { background: var(--ef-bg3, #e2e8f0); border-radius: 6px; }',
+    'table { width: 100%; border-collapse: collapse; min-width: 0; }',
+    'thead th { position: sticky; top: 0; background: var(--ef-bg2, #f2efdf); color: var(--ef-statusline3, #f85552); padding: 12px 16px; text-align: left; font-weight: 600; font-size: 13px; letter-spacing: 0.01em; border-bottom: 1px solid var(--ef-bg4, #e8e5d5); box-shadow: 0 1px 0 rgba(15, 23, 42, 0.05); }',
+    'tbody tr:nth-child(even) { background: var(--ef-bg1, #f8f5e4); }',
+    'tbody tr:hover { background: var(--ef-visual, #f0f2d4); }',
+    'td { padding: 12px 16px; border-bottom: 1px solid var(--ef-bg3, #d7d3c5); white-space: pre-wrap; overflow-wrap: anywhere; color: inherit; vertical-align: top; }',
+    'tbody tr:last-child td { border-bottom: none; }',
+    'td.numeric { text-align: right; font-variant-numeric: tabular-nums; }',
+    'td.empty { color: var(--ef-grey1, #64748b); font-style: italic; text-align: center; }',
+    'a.profile-link { word-break: break-word; }',
+    '.export-meta { font-size: 12px; color: var(--ef-grey1, #64748b); }',
+    '@media (max-width: 768px) { .page { padding: 24px 16px 48px; } thead th, td { padding: 10px 12px; } }',
+    '@media print { .page { padding: 24px; box-shadow: none; } .table-shell { box-shadow: none; } .table-scroll { max-height: none; overflow: visible; } thead th { position: static; box-shadow: none; } }'
+  ].join('\n');
+
+  const EN_DASH = '\u2013';
+
+  function formatFollowers(value) {
+    if (value == null) return null;
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : null;
+    }
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      try { return value.toLocaleString(); } catch (_) { return String(value); }
+    }
+    return null;
+  }
+
+  function buildCell(content, classes) {
+    const classAttr = classes && classes.length ? ' class="' + classes.join(' ') + '"' : '';
+    return '<td' + classAttr + '>' + content + '</td>';
+  }
+
+  function renderCell(person, column) {
+    const key = column.key;
+    const displayValue = getDisplayValue(person, key);
+
+    if (key === 'profileUrl') {
+      if (!displayValue) {
+        return buildCell(EN_DASH, ['empty']);
+      }
+      const safe = escapeHTML(displayValue);
+      const link = '<a class="profile-link" href="' + safe + '" target="_blank" rel="noopener noreferrer">' + safe + '</a>';
+      return buildCell(link, []);
+    }
+
+    if (key === 'followers') {
+      const formatted = formatFollowers(displayValue);
+      if (!formatted) {
+        return buildCell(EN_DASH, ['empty']);
+      }
+      const safeText = escapeHTML(formatted);
+      const classes = typeof displayValue === 'number' ? ['numeric'] : [];
+      return buildCell(safeText, classes);
+    }
+
+    if (displayValue == null) {
+      return buildCell(EN_DASH, ['empty']);
+    }
+
+    const safeValue = escapeHTML(displayValue);
+    return buildCell(safeValue, []);
+  }
+
+  function renderRows(people, columns) {
+    return people.map(function (person) {
+      const cells = columns.map(function (column) { return renderCell(person, column); });
+      return '<tr>' + cells.join('') + '</tr>';
+    }).join('\n');
+  }
+
+  function renderHeaders(columns) {
+    return columns.map(function (column) {
+      return '<th>' + escapeHTML(column.label) + '</th>';
+    }).join('');
+  }
 
   function exportToHtml(people) {
-    if (!people || !people.length) {
-      alert('No data to export');
+    if (!Array.isArray(people) || people.length === 0) {
+      if (typeof alert === 'function') alert('No data to export');
       return;
     }
 
-    const columns = shared.getPersonColumns();
-    const escape = shared.escapeHTML;
-    const getVal = shared.getDisplayValue;
+    const columns = getColumns();
+    if (!Array.isArray(columns) || columns.length === 0) {
+      if (typeof alert === 'function') alert('No columns available for export');
+      return;
+    }
 
-    const headers = columns.map(c => `<th>${escape(c.label)}</th>`).join('');
-    const rows = people.map(p => {
-      return '<tr>' + columns.map(c => {
-        const raw = getVal(p, c.key);
-        if (c.key === 'profileUrl' && raw) {
-          const safe = escape(raw);
-          return `<td><a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a></td>`;
-        }
-        return `<td>${escape(raw)}</td>`;
-      }).join('') + '</tr>';
-    }).join('');
+    const headers = renderHeaders(columns);
+    const rows = renderRows(people, columns);
+    const themeCss = buildThemeCss();
+    const styles = themeCss ? themeCss + '\n\n' + BASE_STYLES : BASE_STYLES;
+    const now = new Date();
+    const metaText = people.length + ' profile' + (people.length === 1 ? '' : 's') + ' • exported ' + now.toLocaleString();
 
-    const htmlContent = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>LinkedIn Profiles</title>
-  <style>
-    :root{ --bg:#fff; --fg:#333; --muted:#e5e7eb; --muted-2:#f3f4f6; --link:#2563eb; }
-    body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;}
-    .page{padding:24px 24px 48px;}
-    h1{margin:0 0 16px 0;font-size:18px;color:var(--link)}
-    .table-wrap{border:1px solid var(--muted);border-radius:8px;overflow:auto;max-height:80vh;background:var(--bg)}
-    table{border-collapse:collapse;width:100%;min-width:900px}
-    th,td{padding:10px 12px;border-bottom:1px solid var(--muted);vertical-align:top; text-wrap:pretty;}
-    th{position:sticky;top:0;background:var(--muted-2);z-index:1;text-align:left}
-    tr:hover td{background:#fafafa}
-    a{color:var(--link);text-decoration:none}
-    a:hover{text-decoration:underline}
-    .meta{margin:8px 0 16px 0;color:#6b7280}
-  </style>
-</head>
-<body>
-  <div class="page">
-    <h1>LinkedIn Profiles</h1>
-    <div class="meta">${people.length} profiles • exported ${new Date().toLocaleString()}</div>
-    <div class="table-wrap"><table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table></div>
-  </div>
-</body>
-</html>`;
+    const htmlContent = '<!doctype html>\n'
+      + '<html lang="en">\n'
+      + '<head>\n'
+      + '  <meta charset="utf-8" />\n'
+      + '  <meta name="viewport" content="width=device-width, initial-scale=1" />\n'
+      + '  <title>LinkedIn Profiles</title>\n'
+      + '  <style>\n' + styles + '\n  </style>\n'
+      + '</head>\n'
+      + '<body>\n'
+      + '  <div class="page">\n'
+      + '    <header class="header">\n'
+      + '      <h1>LinkedIn Profiles</h1>\n'
+      + '      <p class="meta">' + escapeHTML(metaText) + '</p>\n'
+      + '    </header>\n'
+      + '    <div class="table-shell">\n'
+      + '      <div class="table-scroll">\n'
+      + '        <table>\n'
+      + '          <thead>\n'
+      + '            <tr>' + headers + '</tr>\n'
+      + '          </thead>\n'
+      + '          <tbody>\n'
+      + rows + '\n'
+      + '          </tbody>\n'
+      + '        </table>\n'
+      + '      </div>\n'
+      + '    </div>\n'
+      + '    <div class="export-meta">Generated on ' + escapeHTML(now.toDateString()) + '</div>\n'
+      + '  </div>\n'
+      + '</body>\n'
+      + '</html>';
 
-    const timestamp = new Date().toISOString().split('T')[0];
-    shared.downloadFile(htmlContent, `linkedin_profiles_${timestamp}.html`, 'text/html;charset=utf-8');
+    const timestamp = now.toISOString().split('T')[0];
+    downloadFile(htmlContent, 'linkedin_profiles_' + timestamp + '.html', 'text/html;charset=utf-8');
   }
 
   const mod = { exportToHtml };
-  if (typeof module!=='undefined' && module.exports) module.exports = mod;
-  const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
+
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = mod;
+  }
+
+  const root = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : {});
   root.LinkedInScraperModules = root.LinkedInScraperModules || {};
   root.LinkedInScraperModules.exportHtml = mod;
-  if (typeof window!=='undefined') window.exportToHtml = exportToHtml;
+  if (typeof window !== 'undefined') window.exportToHtml = exportToHtml;
 })();

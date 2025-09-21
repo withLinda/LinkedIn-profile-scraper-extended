@@ -1,19 +1,20 @@
 (function() {
     'use strict';
 
-    function getResolver(){
-        if (typeof module!=='undefined' && module.exports) {
-            try { return require('../shared/modResolver'); } catch(_) { return null; }
+    function getModResolver(){
+        if (typeof module!=='undefined' && module.exports){
+            try { return require('../shared/modResolver'); } catch(_) { /* ignore */ }
         }
-        const r = (typeof globalThis!=='undefined'?globalThis:(typeof window!=='undefined'?window:{}));
-        return (r.LinkedInScraperModules||{}).modResolver || null;
-    }
-    function getAuth(){
-        const res = getResolver();
-        if (res && res.resolve) return res.resolve('./auth','auth');
-        try { if (typeof module!=='undefined' && module.exports) return require('./auth'); } catch(_) { return {}; }
         const root = typeof globalThis!=='undefined' ? globalThis : (typeof window!=='undefined' ? window : {});
-        return (root.LinkedInScraperModules||{}).auth || {};
+        const mods = root.LinkedInScraperModules || {};
+        return mods.modResolver || { resolve: function(){ return {}; } };
+    }
+
+    const modResolver = getModResolver();
+
+    function getAuth(){
+        const auth = modResolver.resolve('./auth','auth');
+        return auth && typeof auth === 'object' ? auth : {};
     }
     function cleanValue(raw) {
         let clean = String(raw || '');
