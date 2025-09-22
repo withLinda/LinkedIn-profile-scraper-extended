@@ -57,6 +57,50 @@
     return { data, included };
   }
 
+  // -----------------------------
+  // Helpers for robust extraction
+  // -----------------------------
+  function safeText(v){
+    return (typeof v === 'string') ? v.trim() : '';
+  }
+  function t(node, path){
+    const val = get(node, path);
+    return safeText(val);
+  }
+  function isCard(node){
+    const type = get(node, '$type') || '';
+    return typeof type === 'string' && /\.tetris\.Card$/.test(type);
+  }
+  function cardSectionOf(node){
+    const urn = t(node, 'entityUrn');
+    // urn looks like: urn:li:fsd_profileCard:(<id>,SECTION,en_US)
+    const m = /,([^,]+),en_US\)/.exec(urn);
+    return m ? m[1] : null;
+  }
+  function isLogoOnlyEntity(node){
+    // Ignore pure image/logo entries lacking textual signal
+    const controlName = t(node, 'components.entityComponent.controlName');
+    const title = t(node, 'components.entityComponent.titleV2.text.accessibilityText') ||
+                  t(node, 'components.entityComponent.titleV2.text.text');
+    const subtitle = t(node, 'components.entityComponent.subtitle.accessibilityText') ||
+                     t(node, 'components.entityComponent.subtitle.text');
+    const looksLikeLogo = /^entity_image_/.test(controlName) ||
+      /logo/i.test(t(node, 'components.entityComponent.image.accessibilityText'));
+    return looksLikeLogo && !safeText(title) && !safeText(subtitle);
+  }
+  function getSectionLists(included, section){
+    const out = [];
+    for (const item of included){
+      if (!isCard(item)) continue;
+      if (cardSectionOf(item) !== section) continue;
+      walk(item, (n)=>{
+        const list = get(n, 'fixedListComponent.components');
+        if (Array.isArray(list) && list.length) out.push(list);
+      });
+    }
+    return out;
+  }
+
   // --- Generic deep walker utilities
   function walk(node, visitor){
     if (!node || typeof node !== 'object') return;
@@ -214,12 +258,127 @@
     return out;
   }
 
+  // -----------------------------
+  // New section parsers
+  // -----------------------------
+  function parseVolunteeringFromList(list){
+    const out = [];
+    for (const node of list){
+      if (isPromoOrHighlight(node) || isLogoOnlyEntity(node)) continue;
+      const role = t(node, 'components.entityComponent.titleV2.text.accessibilityText');
+      const organization = t(node, 'components.entityComponent.subtitle.accessibilityText');
+      const duration = t(node, 'components.entityComponent.caption.accessibilityText');
+      const description =
+        t(node, 'components.entityComponent.subComponents.components.0.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText') ||
+        t(node, 'components.entityComponent.subComponents.components.0.components.textComponent.text.accessibilityText') || '';
+      if (!firstNonEmpty(role, organization, duration, description)) continue;
+      out.push({ role, organization, duration, description });
+    }
+    return out;
+  }
+
+  function parseLicensesFromList(list){
+    const out = [];
+    for (const node of list){
+      if (isPromoOrHighlight(node) || isLogoOnlyEntity(node)) continue;
+      const name = t(node, 'components.entityComponent.titleV2.text.accessibilityText');
+      const issuer = t(node, 'components.entityComponent.subtitle.accessibilityText');
+      const issuedOn = t(node, 'components.entityComponent.caption.accessibilityText');
+      // Optional extra detail (rare):
+      const note = t(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText') || '';
+      if (!firstNonEmpty(name, issuer, issuedOn, note)) continue;
+      out.push({ name, issuer, issuedOn, note });
+    }
+    return out;
+  }
+
+  const PROG_LANG_SET = (function(){
+    const names = [
+      'c','c++','c#','go','golang','rust','python','java','kotlin','swift','objective-c',
+      'javascript','typeScript','php','ruby','perl','scala','haskell','elixir','erlang','julia',
+      'matlab','r','dart','lua','solidity','shell','bash','powershell','fortran','cobol','sql','pl/sql',
+      'groovy','vb','vb.net','visual basic'
+    ];
+    return new Set(names.map(s=>s.toLowerCase()));
+  })();
+  function normalizeLangName(s){
+    return safeText(s).replace(/\s+/g,' ').trim();
+  }
+  function parseProgrammingLanguagesFromList(list){
+    const out = [];
+    for (const node of list){
+      if (isPromoOrHighlight(node)) continue;
+      const name = normalizeLangName(
+        t(node, 'components.entityComponent.titleV2.text.accessibilityText') ||
+        t(node, 'components.entityComponent.titleV2.text.text')
+      );
+      if (!name) continue;
+      // Only keep entries that look like programming languages
+      const key = name.toLowerCase();
+      if (!PROG_LANG_SET.has(key)) continue;
+      const proficiency = normalizeLangName(
+        t(node, 'components.entityComponent.caption.accessibilityText') ||
+        t(node, 'components.entityComponent.caption.text')
+      );
+      out.push({ name, proficiency });
+    }
+    return out;
+  }
+
+  function pickSkillsFromAbout(included){
+    // About card contains "Top skills" entity with bullet-separated subtitle
+    for (const item of included){
+      if (!isCard(item) || cardSectionOf(item) !== 'ABOUT') continue;
+      let subtitle = '';
+      walk(item, (n)=>{
+        const title = t(n, 'entityComponent.titleV2.text.accessibilityText') || t(n, 'entityComponent.titleV2.text.text');
+        if (/^top skills$/i.test(title)){
+          const sub = t(n, 'entityComponent.subtitleV2.text.accessibilityText') ||
+                      t(n, 'entityComponent.subtitleV2.text.text') ||
+                      t(n, 'entityComponent.subtitle.accessibilityText') ||
+                      t(n, 'entityComponent.subtitle.text');
+          if (sub) subtitle = sub;
+        }
+      });
+      if (subtitle){
+        const parts = subtitle.split(/[•·,]|\s{2,}/).map(s=>s.trim()).filter(Boolean);
+        // de-dupe while preserving order
+        const seen = new Set(); const skills = [];
+        for (const p of parts){ const k=p.toLowerCase(); if (!seen.has(k)){ seen.add(k); skills.push(p); } }
+        return skills;
+      }
+    }
+    return [];
+  }
+
+  function parseOrganizationsFromLists(lists){
+    const out = [];
+    for (const list of lists){
+      for (const node of list){
+        if (isPromoOrHighlight(node) || isLogoOnlyEntity(node)) continue;
+        const name = t(node, 'components.entityComponent.titleV2.text.accessibilityText') ||
+                     t(node, 'components.entityComponent.titleV2.text.text');
+        const roleOrDetail = t(node, 'components.entityComponent.subtitle.accessibilityText') ||
+                             t(node, 'components.entityComponent.subtitle.text');
+        const duration = t(node, 'components.entityComponent.caption.accessibilityText') ||
+                         t(node, 'components.entityComponent.caption.text');
+        if (!firstNonEmpty(name, roleOrDetail, duration)) continue;
+        out.push({ name, roleOrDetail, duration });
+      }
+    }
+    return out;
+  }
+
   function parseProfile(included){
     const about = pickAboutText(included);
     const lists = collectFixedLists(included);
 
     let experiences = [];
     let education = [];
+    let volunteering = [];
+    let licenses = [];
+    let programmingLanguages = [];
+    let organizations = [];
 
     for (const list of lists){
       if (!Array.isArray(list) || !list.length) continue;
@@ -229,10 +388,28 @@
       } else if (looksLikeEducationEntity(first)){
         if (!education.length) education = parseEducationFromList(list);
       }
-      if (experiences.length && education.length) break;
+      // Do not break early; other sections may be in later lists/cards
     }
 
-    return { about, experiences, education };
+    // Volunteering (by card section)
+    for (const vList of getSectionLists(included, 'VOLUNTEERING_EXPERIENCE')){
+      volunteering.push(...parseVolunteeringFromList(vList));
+    }
+    // Licenses & Certifications (by card section)
+    for (const lList of getSectionLists(included, 'LICENSES_AND_CERTIFICATIONS')){
+      licenses.push(...parseLicensesFromList(lList));
+    }
+    // Programming languages (subset of LANGUAGES card)
+    for (const langList of getSectionLists(included, 'LANGUAGES')){
+      programmingLanguages.push(...parseProgrammingLanguagesFromList(langList));
+    }
+    // Organizations (if such a card exists)
+    const orgLists = getSectionLists(included, 'ORGANIZATIONS');
+    if (orgLists.length) organizations = parseOrganizationsFromLists(orgLists);
+
+    const skills = pickSkillsFromAbout(included);
+
+    return { about, experiences, education, volunteering, licenses, skills, programmingLanguages, organizations };
   }
 
   const mod = {

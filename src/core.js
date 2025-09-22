@@ -71,6 +71,71 @@
         return people;
     }
 
+    function joinCompact(parts, separator) {
+        const sep = separator || ' ';
+        return parts
+            .map(part => (typeof part === 'string' ? part.trim() : ''))
+            .filter(Boolean)
+            .join(sep);
+    }
+
+    function formatSkills(skills) {
+        if (!Array.isArray(skills) || skills.length === 0) return '';
+        return skills.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).join(', ');
+    }
+
+    function formatProgrammingLanguages(langs) {
+        if (!Array.isArray(langs) || langs.length === 0) return '';
+        const lines = langs.map(item => {
+            const name = (item && typeof item.name === 'string') ? item.name.trim() : '';
+            if (!name) return '';
+            const proficiency = (item && typeof item.proficiency === 'string') ? item.proficiency.trim() : '';
+            return proficiency ? name + ' (' + proficiency + ')' : name;
+        }).filter(Boolean);
+        return lines.join('\n');
+    }
+
+    function formatDetailList(entries, selectors) {
+        if (!Array.isArray(entries) || entries.length === 0) return '';
+        const [primary, secondary, tertiary, quaternary] = selectors;
+        const lines = entries.map(item => {
+            if (!item || typeof item !== 'object') return '';
+            const parts = [];
+            if (primary) parts.push(primary(item));
+            if (secondary) parts.push(secondary(item));
+            if (tertiary) parts.push(tertiary(item));
+            if (quaternary) parts.push(quaternary(item));
+            return joinCompact(parts, ' • ');
+        }).filter(Boolean);
+        return lines.join('\n');
+    }
+
+    function formatLicenses(licenses) {
+        return formatDetailList(licenses, [
+            item => item && typeof item.name === 'string' ? item.name : '',
+            item => item && typeof item.issuer === 'string' ? item.issuer : '',
+            item => item && typeof item.issuedOn === 'string' ? item.issuedOn : '',
+            item => item && typeof item.note === 'string' ? item.note : ''
+        ]);
+    }
+
+    function formatVolunteering(volunteering) {
+        return formatDetailList(volunteering, [
+            item => item && typeof item.role === 'string' ? item.role : '',
+            item => item && typeof item.organization === 'string' ? item.organization : '',
+            item => item && typeof item.duration === 'string' ? item.duration : '',
+            item => item && typeof item.description === 'string' ? item.description : ''
+        ]);
+    }
+
+    function formatOrganizations(organizations) {
+        return formatDetailList(organizations, [
+            item => item && typeof item.name === 'string' ? item.name : '',
+            item => item && typeof item.roleOrDetail === 'string' ? item.roleOrDetail : '',
+            item => item && typeof item.duration === 'string' ? item.duration : ''
+        ]);
+    }
+
     class LinkedInScraper {
         constructor(targetCount = 300, keyword = null) {
             this.targetCount = targetCount;
@@ -183,6 +248,11 @@
                                         person[`edu${i+1}_grade`] = d.grade || '';
                                         person[`edu${i+1}_description`] = d.educationDescription || '';
                                     }
+                                    person.skills = formatSkills(parsed.skills);
+                                    person.programmingLanguages = formatProgrammingLanguages(parsed.programmingLanguages);
+                                    person.licenses = formatLicenses(parsed.licenses);
+                                    person.volunteering = formatVolunteering(parsed.volunteering);
+                                    person.organizations = formatOrganizations(parsed.organizations);
                                     break; // success
                                 } catch (e) {
                                     if (e && e.message === 'RATE_LIMIT') {

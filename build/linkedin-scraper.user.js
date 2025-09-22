@@ -51,7 +51,13 @@
             // ---- Education (merged 1–3)
             { key: 'edu1', label: 'Education 1' },
             { key: 'edu2', label: 'Education 2' },
-            { key: 'edu3', label: 'Education 3' }
+            { key: 'edu3', label: 'Education 3' },
+            // ---- New fields
+            { key: 'skills', label: 'Skills' },
+            { key: 'programmingLanguages', label: 'Programming Languages' },
+            { key: 'licenses', label: 'Licenses & Certs' },
+            { key: 'volunteering', label: 'Volunteering' },
+            { key: 'organizations', label: 'Organizations' }
         ];
     
         const linkedinSchemaModule = { PERSON_COLUMNS };
@@ -541,6 +547,50 @@
         return { data, included };
       }
     
+      // -----------------------------
+      // Helpers for robust extraction
+      // -----------------------------
+      function safeText(v){
+        return (typeof v === 'string') ? v.trim() : '';
+      }
+      function t(node, path){
+        const val = get(node, path);
+        return safeText(val);
+      }
+      function isCard(node){
+        const type = get(node, '$type') || '';
+        return typeof type === 'string' && /\.tetris\.Card$/.test(type);
+      }
+      function cardSectionOf(node){
+        const urn = t(node, 'entityUrn');
+        // urn looks like: urn:li:fsd_profileCard:(<id>,SECTION,en_US)
+        const m = /,([^,]+),en_US\)/.exec(urn);
+        return m ? m[1] : null;
+      }
+      function isLogoOnlyEntity(node){
+        // Ignore pure image/logo entries lacking textual signal
+        const controlName = t(node, 'components.entityComponent.controlName');
+        const title = t(node, 'components.entityComponent.titleV2.text.accessibilityText') ||
+                      t(node, 'components.entityComponent.titleV2.text.text');
+        const subtitle = t(node, 'components.entityComponent.subtitle.accessibilityText') ||
+                         t(node, 'components.entityComponent.subtitle.text');
+        const looksLikeLogo = /^entity_image_/.test(controlName) ||
+          /logo/i.test(t(node, 'components.entityComponent.image.accessibilityText'));
+        return looksLikeLogo && !safeText(title) && !safeText(subtitle);
+      }
+      function getSectionLists(included, section){
+        const out = [];
+        for (const item of included){
+          if (!isCard(item)) continue;
+          if (cardSectionOf(item) !== section) continue;
+          walk(item, (n)=>{
+            const list = get(n, 'fixedListComponent.components');
+            if (Array.isArray(list) && list.length) out.push(list);
+          });
+        }
+        return out;
+      }
+    
       // --- Generic deep walker utilities
       function walk(node, visitor){
         if (!node || typeof node !== 'object') return;
@@ -698,12 +748,127 @@
         return out;
       }
     
+      // -----------------------------
+      // New section parsers
+      // -----------------------------
+      function parseVolunteeringFromList(list){
+        const out = [];
+        for (const node of list){
+          if (isPromoOrHighlight(node) || isLogoOnlyEntity(node)) continue;
+          const role = t(node, 'components.entityComponent.titleV2.text.accessibilityText');
+          const organization = t(node, 'components.entityComponent.subtitle.accessibilityText');
+          const duration = t(node, 'components.entityComponent.caption.accessibilityText');
+          const description =
+            t(node, 'components.entityComponent.subComponents.components.0.components.fixedListComponent.components.0.components.textComponent.text.accessibilityText') ||
+            t(node, 'components.entityComponent.subComponents.components.0.components.textComponent.text.accessibilityText') || '';
+          if (!firstNonEmpty(role, organization, duration, description)) continue;
+          out.push({ role, organization, duration, description });
+        }
+        return out;
+      }
+    
+      function parseLicensesFromList(list){
+        const out = [];
+        for (const node of list){
+          if (isPromoOrHighlight(node) || isLogoOnlyEntity(node)) continue;
+          const name = t(node, 'components.entityComponent.titleV2.text.accessibilityText');
+          const issuer = t(node, 'components.entityComponent.subtitle.accessibilityText');
+          const issuedOn = t(node, 'components.entityComponent.caption.accessibilityText');
+          // Optional extra detail (rare):
+          const note = t(node, 'components.entityComponent.subComponents.components.0.components.insightComponent.text.text.accessibilityText') || '';
+          if (!firstNonEmpty(name, issuer, issuedOn, note)) continue;
+          out.push({ name, issuer, issuedOn, note });
+        }
+        return out;
+      }
+    
+      const PROG_LANG_SET = (function(){
+        const names = [
+          'c','c++','c#','go','golang','rust','python','java','kotlin','swift','objective-c',
+          'javascript','typeScript','php','ruby','perl','scala','haskell','elixir','erlang','julia',
+          'matlab','r','dart','lua','solidity','shell','bash','powershell','fortran','cobol','sql','pl/sql',
+          'groovy','vb','vb.net','visual basic'
+        ];
+        return new Set(names.map(s=>s.toLowerCase()));
+      })();
+      function normalizeLangName(s){
+        return safeText(s).replace(/\s+/g,' ').trim();
+      }
+      function parseProgrammingLanguagesFromList(list){
+        const out = [];
+        for (const node of list){
+          if (isPromoOrHighlight(node)) continue;
+          const name = normalizeLangName(
+            t(node, 'components.entityComponent.titleV2.text.accessibilityText') ||
+            t(node, 'components.entityComponent.titleV2.text.text')
+          );
+          if (!name) continue;
+          // Only keep entries that look like programming languages
+          const key = name.toLowerCase();
+          if (!PROG_LANG_SET.has(key)) continue;
+          const proficiency = normalizeLangName(
+            t(node, 'components.entityComponent.caption.accessibilityText') ||
+            t(node, 'components.entityComponent.caption.text')
+          );
+          out.push({ name, proficiency });
+        }
+        return out;
+      }
+    
+      function pickSkillsFromAbout(included){
+        // About card contains "Top skills" entity with bullet-separated subtitle
+        for (const item of included){
+          if (!isCard(item) || cardSectionOf(item) !== 'ABOUT') continue;
+          let subtitle = '';
+          walk(item, (n)=>{
+            const title = t(n, 'entityComponent.titleV2.text.accessibilityText') || t(n, 'entityComponent.titleV2.text.text');
+            if (/^top skills$/i.test(title)){
+              const sub = t(n, 'entityComponent.subtitleV2.text.accessibilityText') ||
+                          t(n, 'entityComponent.subtitleV2.text.text') ||
+                          t(n, 'entityComponent.subtitle.accessibilityText') ||
+                          t(n, 'entityComponent.subtitle.text');
+              if (sub) subtitle = sub;
+            }
+          });
+          if (subtitle){
+            const parts = subtitle.split(/[•·,]|\s{2,}/).map(s=>s.trim()).filter(Boolean);
+            // de-dupe while preserving order
+            const seen = new Set(); const skills = [];
+            for (const p of parts){ const k=p.toLowerCase(); if (!seen.has(k)){ seen.add(k); skills.push(p); } }
+            return skills;
+          }
+        }
+        return [];
+      }
+    
+      function parseOrganizationsFromLists(lists){
+        const out = [];
+        for (const list of lists){
+          for (const node of list){
+            if (isPromoOrHighlight(node) || isLogoOnlyEntity(node)) continue;
+            const name = t(node, 'components.entityComponent.titleV2.text.accessibilityText') ||
+                         t(node, 'components.entityComponent.titleV2.text.text');
+            const roleOrDetail = t(node, 'components.entityComponent.subtitle.accessibilityText') ||
+                                 t(node, 'components.entityComponent.subtitle.text');
+            const duration = t(node, 'components.entityComponent.caption.accessibilityText') ||
+                             t(node, 'components.entityComponent.caption.text');
+            if (!firstNonEmpty(name, roleOrDetail, duration)) continue;
+            out.push({ name, roleOrDetail, duration });
+          }
+        }
+        return out;
+      }
+    
       function parseProfile(included){
         const about = pickAboutText(included);
         const lists = collectFixedLists(included);
     
         let experiences = [];
         let education = [];
+        let volunteering = [];
+        let licenses = [];
+        let programmingLanguages = [];
+        let organizations = [];
     
         for (const list of lists){
           if (!Array.isArray(list) || !list.length) continue;
@@ -713,10 +878,28 @@
           } else if (looksLikeEducationEntity(first)){
             if (!education.length) education = parseEducationFromList(list);
           }
-          if (experiences.length && education.length) break;
+          // Do not break early; other sections may be in later lists/cards
         }
     
-        return { about, experiences, education };
+        // Volunteering (by card section)
+        for (const vList of getSectionLists(included, 'VOLUNTEERING_EXPERIENCE')){
+          volunteering.push(...parseVolunteeringFromList(vList));
+        }
+        // Licenses & Certifications (by card section)
+        for (const lList of getSectionLists(included, 'LICENSES_AND_CERTIFICATIONS')){
+          licenses.push(...parseLicensesFromList(lList));
+        }
+        // Programming languages (subset of LANGUAGES card)
+        for (const langList of getSectionLists(included, 'LANGUAGES')){
+          programmingLanguages.push(...parseProgrammingLanguagesFromList(langList));
+        }
+        // Organizations (if such a card exists)
+        const orgLists = getSectionLists(included, 'ORGANIZATIONS');
+        if (orgLists.length) organizations = parseOrganizationsFromLists(orgLists);
+    
+        const skills = pickSkillsFromAbout(included);
+    
+        return { about, experiences, education, volunteering, licenses, skills, programmingLanguages, organizations };
       }
     
       const mod = {
@@ -885,6 +1068,71 @@
             return people;
         }
     
+        function joinCompact(parts, separator) {
+            const sep = separator || ' ';
+            return parts
+                .map(part => (typeof part === 'string' ? part.trim() : ''))
+                .filter(Boolean)
+                .join(sep);
+        }
+    
+        function formatSkills(skills) {
+            if (!Array.isArray(skills) || skills.length === 0) return '';
+            return skills.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).join(', ');
+        }
+    
+        function formatProgrammingLanguages(langs) {
+            if (!Array.isArray(langs) || langs.length === 0) return '';
+            const lines = langs.map(item => {
+                const name = (item && typeof item.name === 'string') ? item.name.trim() : '';
+                if (!name) return '';
+                const proficiency = (item && typeof item.proficiency === 'string') ? item.proficiency.trim() : '';
+                return proficiency ? name + ' (' + proficiency + ')' : name;
+            }).filter(Boolean);
+            return lines.join('\n');
+        }
+    
+        function formatDetailList(entries, selectors) {
+            if (!Array.isArray(entries) || entries.length === 0) return '';
+            const [primary, secondary, tertiary, quaternary] = selectors;
+            const lines = entries.map(item => {
+                if (!item || typeof item !== 'object') return '';
+                const parts = [];
+                if (primary) parts.push(primary(item));
+                if (secondary) parts.push(secondary(item));
+                if (tertiary) parts.push(tertiary(item));
+                if (quaternary) parts.push(quaternary(item));
+                return joinCompact(parts, ' • ');
+            }).filter(Boolean);
+            return lines.join('\n');
+        }
+    
+        function formatLicenses(licenses) {
+            return formatDetailList(licenses, [
+                item => item && typeof item.name === 'string' ? item.name : '',
+                item => item && typeof item.issuer === 'string' ? item.issuer : '',
+                item => item && typeof item.issuedOn === 'string' ? item.issuedOn : '',
+                item => item && typeof item.note === 'string' ? item.note : ''
+            ]);
+        }
+    
+        function formatVolunteering(volunteering) {
+            return formatDetailList(volunteering, [
+                item => item && typeof item.role === 'string' ? item.role : '',
+                item => item && typeof item.organization === 'string' ? item.organization : '',
+                item => item && typeof item.duration === 'string' ? item.duration : '',
+                item => item && typeof item.description === 'string' ? item.description : ''
+            ]);
+        }
+    
+        function formatOrganizations(organizations) {
+            return formatDetailList(organizations, [
+                item => item && typeof item.name === 'string' ? item.name : '',
+                item => item && typeof item.roleOrDetail === 'string' ? item.roleOrDetail : '',
+                item => item && typeof item.duration === 'string' ? item.duration : ''
+            ]);
+        }
+    
         class LinkedInScraper {
             constructor(targetCount = 300, keyword = null) {
                 this.targetCount = targetCount;
@@ -997,6 +1245,11 @@
                                             person[`edu${i+1}_grade`] = d.grade || '';
                                             person[`edu${i+1}_description`] = d.educationDescription || '';
                                         }
+                                        person.skills = formatSkills(parsed.skills);
+                                        person.programmingLanguages = formatProgrammingLanguages(parsed.programmingLanguages);
+                                        person.licenses = formatLicenses(parsed.licenses);
+                                        person.volunteering = formatVolunteering(parsed.volunteering);
+                                        person.organizations = formatOrganizations(parsed.organizations);
                                         break; // success
                                     } catch (e) {
                                         if (e && e.message === 'RATE_LIMIT') {
@@ -1293,7 +1546,13 @@
         edu3_institution: '220px',
         edu3_degree: '180px',
         edu3_grade: '140px',
-        edu3_description: '280px'
+        edu3_description: '280px',
+        // Additional sections
+        skills: '260px',
+        programmingLanguages: '260px',
+        licenses: '420px',
+        volunteering: '420px',
+        organizations: '360px'
       };
     
       function renderColGroup(columns, widths) {

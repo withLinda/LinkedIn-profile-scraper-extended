@@ -4,14 +4,14 @@ A browser-based LinkedIn profile scraper that enriches people search results wit
 
 > ⚠️ **Heads-up:** LinkedIn frequently adjusts their UI and Voyager endpoints. Behaviour can break without warning. If something stops working, pull the latest build or open an issue.
 >
-> 📝 **Scope:** Targets **search results** and enriches profiles where possible (About, Experience, Education). Full profile scrapes are out of scope.
+> 📝 **Scope:** Targets **search results** and enriches profiles where possible (About, Experience, Education, Skills, Programming Languages, Licenses & Certs, Volunteering, Organizations). Full profile scrapes are out of scope.
 
 ---
 
 ## Features
 
 - 🖥️ **Console-first workflow:** Copy one script, paste into DevTools, and scrape instantly
-- 🧠 **Profile enrichment:** Fetches About, top 3 experience entries, and top 3 education entries when URN data is available
+- 🧠 **Profile enrichment:** Fetches About, top 3 Experience and top 3 Education entries, plus Skills, Programming Languages, Licenses & Certifications, Volunteering, and Organizations when URN data is available
 - 📊 **Live overlay UI:** In-page dashboard with progress bar, deduped table, and inline error messages
 - 📦 **Multi-format exports:** CSV, HTML, and JSON payloads that mirror the on-screen table
 - 🔄 **Resilient fetching:** Handles Voyager rate limits with jittered retries and graceful warnings
@@ -82,9 +82,18 @@ Build artifacts:
 
 ### Extracted Fields
 
-Name · Profile URL · Headline · Location · Current Role · Followers · URN Code  
-About summary · Up to 3 flattened Experience entries (company, title, durations, descriptions)  
-Up to 3 flattened Education entries (institution, degree, grade, description)
+Core:  
+Name · Profile URL · Headline · Location · Current · Followers · URN Code
+
+Enrichment (when URN is available):  
+About  
+Experience 1–3 (merged: company • title • duration(s) • description)  
+Education 1–3 (merged: institution • degree • grade • description)  
+Skills (comma-separated from “Top skills”)  
+Programming Languages (e.g., “Python (Professional)”)  
+Licenses & Certs (name • issuer • issued on)  
+Volunteering (role • organization • duration • description)  
+Organizations (name • role/detail • duration)
 
 ### Export Formats
 
@@ -99,7 +108,7 @@ Up to 3 flattened Education entries (institution, degree, grade, description)
 1. **Voyager GraphQL API:** Requests people search batches (10 profiles per call)
 2. **Keyword detection:** Reads the active search query from the page when possible
 3. **Rate-limit strategy:** Jittered 400–1100ms delays, retries + cooldown on `RATE_LIMIT`
-4. **Data enrichment:** Resolves profile URNs to fetch About/Experience/Education payloads
+4. **Data enrichment:** Resolves profile URNs to fetch About/Experience/Education and additional sections (Skills, Programming Languages, Licenses & Certs, Volunteering, Organizations) when present
 5. **Deduplication:** Normalises profile URLs before adding to the dataset
 6. **UI overlay:** Injects a themed controller with progress, table, and export buttons
 
@@ -117,7 +126,7 @@ The page may not have LinkedIn scripts fully loaded yet; reload and try again, o
 The overlay pauses and retries automatically. If it persists, wait a few minutes before resuming.
 
 **No enrichment columns**  
-Profiles without URNs (or private profiles) may not expose About/Experience/Education data—headers remain but cells show `-`.
+Profiles without URNs (or private profiles) may not expose enrichment data—headers remain but cells show `-`. Even with a URN, some sections may be empty if not present on the profile (e.g., no Licenses, no Volunteering, no Languages card, no Top skills in About).
 
 ---
 
@@ -186,4 +195,4 @@ This project is for educational and productivity purposes. The authors assume no
 ---
 
 **Last Updated:** September 2025
-**Version:** 1.0.0
+**Version:** 2.0.0

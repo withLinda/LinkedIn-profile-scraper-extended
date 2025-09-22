@@ -18,7 +18,13 @@
         // ---- Education (merged 1–3)
         { key: 'edu1', label: 'Education 1' },
         { key: 'edu2', label: 'Education 2' },
-        { key: 'edu3', label: 'Education 3' }
+        { key: 'edu3', label: 'Education 3' },
+        // ---- New fields
+        { key: 'skills', label: 'Skills' },
+        { key: 'programmingLanguages', label: 'Programming Languages' },
+        { key: 'licenses', label: 'Licenses & Certs' },
+        { key: 'volunteering', label: 'Volunteering' },
+        { key: 'organizations', label: 'Organizations' }
     ];
 
     const linkedinSchemaModule = { PERSON_COLUMNS };

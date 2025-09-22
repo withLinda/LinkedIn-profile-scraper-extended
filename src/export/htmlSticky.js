@@ -59,7 +59,13 @@
     edu3_institution: '220px',
     edu3_degree: '180px',
     edu3_grade: '140px',
-    edu3_description: '280px'
+    edu3_description: '280px',
+    // Additional sections
+    skills: '260px',
+    programmingLanguages: '260px',
+    licenses: '420px',
+    volunteering: '420px',
+    organizations: '360px'
   };
 
   function renderColGroup(columns, widths) {
