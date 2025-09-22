@@ -18,6 +18,10 @@ A browser-based LinkedIn profile scraper that enriches people search results wit
 - 🔒 **Local-only processing:** Runs entirely in your browser session; no external servers involved
 
 ---
+## 🎥 Browser Console Method (How to use video)
+
+https://github.com/user-attachments/assets/237e264d-efa4-4928-ad5c-f7ccdb75bed9
+
 
 ## 📸 Screenshots
 
