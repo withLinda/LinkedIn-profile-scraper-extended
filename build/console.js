@@ -870,41 +870,47 @@
     
       function parseProfile(included){
         const about = pickAboutText(included);
-        const lists = collectFixedLists(included);
     
+        // Experience by card section
         let experiences = [];
+        for (const list of getSectionLists(included, 'EXPERIENCE')) {
+          const items = parseExperiencesFromList(list);
+          if (items && items.length) experiences = experiences.concat(items);
+        }
+        experiences = experiences.slice(0, 3);
+    
+        // Education by card section
         let education = [];
+        for (const list of getSectionLists(included, 'EDUCATION')) {
+          const items = parseEducationFromList(list);
+          if (items && items.length) education = education.concat(items);
+        }
+        education = education.slice(0, 3);
+    
+        // Volunteering by card section
         let volunteering = [];
+        for (const list of getSectionLists(included, 'VOLUNTEERING_EXPERIENCE')) {
+          const items = parseVolunteeringFromList(list);
+          if (items && items.length) volunteering = volunteering.concat(items);
+        }
+    
+        // Licenses & Certifications by card section
         let licenses = [];
+        for (const list of getSectionLists(included, 'LICENSES_AND_CERTIFICATIONS')) {
+          const items = parseLicensesFromList(list);
+          if (items && items.length) licenses = licenses.concat(items);
+        }
+    
+        // Programming languages from LANGUAGES card
         let programmingLanguages = [];
-        let organizations = [];
-    
-        for (const list of lists){
-          if (!Array.isArray(list) || !list.length) continue;
-          const first = list[0];
-          if (looksLikeExperienceEntity(first)){
-            if (!experiences.length) experiences = parseExperiencesFromList(list);
-          } else if (looksLikeEducationEntity(first)){
-            if (!education.length) education = parseEducationFromList(list);
-          }
-          // Do not break early; other sections may be in later lists/cards
+        for (const list of getSectionLists(included, 'LANGUAGES')) {
+          const items = parseProgrammingLanguagesFromList(list);
+          if (items && items.length) programmingLanguages = programmingLanguages.concat(items);
         }
     
-        // Volunteering (by card section)
-        for (const vList of getSectionLists(included, 'VOLUNTEERING_EXPERIENCE')){
-          volunteering.push(...parseVolunteeringFromList(vList));
-        }
-        // Licenses & Certifications (by card section)
-        for (const lList of getSectionLists(included, 'LICENSES_AND_CERTIFICATIONS')){
-          licenses.push(...parseLicensesFromList(lList));
-        }
-        // Programming languages (subset of LANGUAGES card)
-        for (const langList of getSectionLists(included, 'LANGUAGES')){
-          programmingLanguages.push(...parseProgrammingLanguagesFromList(langList));
-        }
-        // Organizations (if such a card exists)
+        // Organizations by card section
         const orgLists = getSectionLists(included, 'ORGANIZATIONS');
-        if (orgLists.length) organizations = parseOrganizationsFromLists(orgLists);
+        const organizations = orgLists.length ? parseOrganizationsFromLists(orgLists) : [];
     
         const skills = pickSkillsFromAbout(included);
     
