@@ -85,6 +85,11 @@
       if (typeof f === 'number' && Number.isFinite(f)) return f;
       return null;
     }
+    // Back-compat: if schema key is 'languages' but data still has 'programmingLanguages'
+    if (key === 'languages' && (person.languages == null || String(person.languages).trim() === '')) {
+      const legacy = person.programmingLanguages;
+      if (legacy != null && String(legacy).trim()) return legacy;
+    }
     const value = person[key];
     if (value == null) return null;
     const text = String(value).trim();

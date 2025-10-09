@@ -62,7 +62,7 @@
     edu3_description: '280px',
     // Additional sections
     skills: '260px',
-    programmingLanguages: '260px',
+    languages: '260px',
     licenses: '420px',
     volunteering: '420px',
     organizations: '360px'

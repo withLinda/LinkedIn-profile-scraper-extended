@@ -249,7 +249,7 @@
                                         person[`edu${i+1}_description`] = d.educationDescription || '';
                                     }
                                     person.skills = formatSkills(parsed.skills);
-                                    person.programmingLanguages = formatProgrammingLanguages(parsed.programmingLanguages);
+                                    person.languages = formatProgrammingLanguages(parsed.languages);
                                     person.licenses = formatLicenses(parsed.licenses);
                                     person.volunteering = formatVolunteering(parsed.volunteering);
                                     person.organizations = formatOrganizations(parsed.organizations);

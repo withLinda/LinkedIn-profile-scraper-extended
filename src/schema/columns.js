@@ -21,7 +21,7 @@
         { key: 'edu3', label: 'Education 3' },
         // ---- New fields
         { key: 'skills', label: 'Skills' },
-        { key: 'programmingLanguages', label: 'Programming Languages' },
+        { key: 'languages', label: 'Languages' },
         { key: 'licenses', label: 'Licenses & Certs' },
         { key: 'volunteering', label: 'Volunteering' },
         { key: 'organizations', label: 'Organizations' }
