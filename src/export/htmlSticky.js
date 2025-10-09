@@ -102,8 +102,10 @@
 
   // Sticky CSS (moved out of BASE_STYLES in html.js).  :contentReference[oaicite:13]{index=13}
   const STICKY_CSS = [
-    '.sticky-col { position: sticky; z-index: 1; background: inherit; box-shadow: 1px 0 0 rgba(15, 23, 42, 0.06) inset; }',
-    'thead th.sticky-col { z-index: 5; background: var(--ef-bg2, #f2efdf); }'
+    // Make sticky body cells opaque so content behind doesn't bleed through on horizontal scroll
+    '.sticky-col { position: sticky; z-index: 2; background: var(--ef-panel-bg, #272E33); background-clip: padding-box; box-shadow: 1px 0 0 rgba(15, 23, 42, 0.06) inset; }',
+    // Header stickies inherit the header gradient for visual consistency
+    'thead th.sticky-col { z-index: 5; background: inherit; background-clip: padding-box; }'
   ].join('\n');
 
   // Factory returning everything html.js needs in one go.
