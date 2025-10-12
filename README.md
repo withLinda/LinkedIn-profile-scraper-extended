@@ -197,5 +197,5 @@ This project is for educational and productivity purposes. The authors assume no
 
 ---
 
-**Last Updated:** September 2025
-**Version:** 2.0.0
+**Last Updated:** October 2025
+**Version:** 3.0.0
