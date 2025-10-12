@@ -4,8 +4,7 @@ A browser-based LinkedIn profile scraper that enriches people search results wit
 
 > ⚠️ **Heads-up:** LinkedIn frequently adjusts their UI and Voyager endpoints. Behaviour can break without warning. If something stops working, pull the latest build or open an issue.
 >
-> 📝 **Scope:** Targets **search results** and enriches profiles where possible (About, Experience, Education, Skills, Programming Languages, Licenses & Certs, Volunteering, Organizations). Full profile scrapes are out of scope.
-
+> 📝 **Scope:** Targets **search results** and enriches profiles where possible (About, Experience, Education, Skills, Programming Languages, Licenses & Certs, Volunteering, Organizations). 
 ---
 
 ## Features
