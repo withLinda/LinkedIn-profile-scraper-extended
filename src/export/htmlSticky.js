@@ -19,6 +19,7 @@
     // Core
     name: '180px',
     profileUrl: '260px',
+    contactInfo: '260px',
     headline: '220px',
     location: '150px',
     current: '220px',

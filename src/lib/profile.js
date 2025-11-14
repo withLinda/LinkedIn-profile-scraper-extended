@@ -57,6 +57,48 @@
     return { data, included };
   }
 
+  // -- URL builder and fetcher for "contact info" profile GraphQL
+  function buildContactInfoUrl(memberIdentity){
+    if (!memberIdentity) return null;
+    const slug = String(memberIdentity || '').trim();
+    if (!slug) return null;
+    const encodedSlug = encodeURIComponent(slug);
+    const variables = `variables=(memberIdentity:${encodedSlug})`;
+    const queryId  = 'queryId=voyagerIdentityDashProfiles.c7452e58fa37646d09dae4920fc5b4b9';
+    return `https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&${variables}&${queryId}`;
+  }
+
+  async function fetchContactInfoJson(memberIdentity, csrfToken){
+    const url = buildContactInfoUrl(memberIdentity);
+    if (!url) throw new Error('CONTACT_URL');
+    const headers = {
+      'x-restli-protocol-version': '2.0.0',
+      'accept': 'application/vnd.linkedin.normalized+json+2.1'
+    };
+    const auth = getAuth();
+    const token = csrfToken || (auth && typeof auth.getCsrfToken === 'function' ? auth.getCsrfToken() : null);
+    if (token) headers['csrf-token'] = token;
+
+    const res = await fetch(url, { method: 'GET', headers, credentials: 'include' });
+    if (res.status === 429) throw new Error('RATE_LIMIT');
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error('[ContactInfo] HTTP', res.status, body.slice(0, 500));
+      throw new Error(`HTTP ${res.status}`);
+    }
+    let data;
+    try { data = await res.json(); }
+    catch (e) {
+      const clone = res.clone();
+      const body = await clone.text().catch(() => '');
+      console.error('[ContactInfo] Non-JSON body:', body.slice(0, 500));
+      throw e;
+    }
+    const rawIncluded = data?.included ?? data?.data?.included ?? [];
+    const included = Array.isArray(rawIncluded) ? rawIncluded : [];
+    return { data, included };
+  }
+
   // -----------------------------
   // Helpers for robust extraction
   // -----------------------------
@@ -527,10 +569,92 @@
     return { about, experiences, education, volunteering, licenses, skills, languages, organizations };
   }
 
+  // Parse contact info (email, phones, websites, social, etc.) into a flat string
+  function parseContactInfo(included, options){
+    const list = Array.isArray(included) ? included : [];
+    if (!list.length) return { contactInfo: '', profile: null };
+
+    const targetSlug = (options && typeof options.memberIdentity === 'string')
+      ? options.memberIdentity.trim().toLowerCase()
+      : null;
+
+    let profileNode = null;
+    for (const item of list){
+      if (!item || typeof item !== 'object') continue;
+      const type = get(item, '$type') || item.$type || '';
+      if (type !== 'com.linkedin.voyager.dash.identity.profile.Profile') continue;
+      if (targetSlug){
+        const id = safeText(item.publicIdentifier).toLowerCase();
+        if (id && id === targetSlug) { profileNode = item; break; }
+      } else if (!profileNode) {
+        profileNode = item;
+      }
+    }
+
+    if (!profileNode) return { contactInfo: '', profile: null };
+
+    const lines = [];
+
+    // Email
+    const emailObj = profileNode.emailAddress || null;
+    const email = emailObj && safeText(emailObj.emailAddress);
+    if (email) lines.push('Email: ' + email);
+
+    // Phones
+    const phones = Array.isArray(profileNode.phoneNumbers) ? profileNode.phoneNumbers : [];
+    phones.forEach(function(p){
+      if (!p || typeof p !== 'object') return;
+      const number = safeText(p.number || p.phoneNumber);
+      if (!number) return;
+      const label = safeText(p.type || p.category);
+      lines.push(label ? ('Phone (' + label + '): ' + number) : ('Phone: ' + number));
+    });
+
+    // Websites
+    const websites = Array.isArray(profileNode.websites) ? profileNode.websites : [];
+    websites.forEach(function(w){
+      if (!w || typeof w !== 'object') return;
+      const url = safeText(w.url);
+      if (!url) return;
+      const category = safeText(w.category);
+      lines.push(category ? ('Website (' + category + '): ' + url) : ('Website: ' + url));
+    });
+
+    // Twitter handles
+    const twitterHandles = Array.isArray(profileNode.twitterHandles) ? profileNode.twitterHandles : [];
+    twitterHandles.forEach(function(tw){
+      if (!tw || typeof tw !== 'object') return;
+      const handle = safeText(tw.name || tw.handle);
+      if (!handle) return;
+      lines.push('Twitter: ' + handle);
+    });
+
+    // WeChat
+    const wechat = profileNode.weChatContactInfo || profileNode.wechatContactInfo || null;
+    if (wechat && typeof wechat === 'object') {
+      const wechatId = safeText(wechat.weChatId || wechat.wechatId || wechat.handle || wechat.id);
+      if (wechatId) lines.push('WeChat: ' + wechatId);
+    }
+
+    // Address
+    const address = safeText(profileNode.address);
+    if (address) lines.push('Address: ' + address);
+
+    // Exclude birth date and technical identifiers from Contact Info
+
+    return {
+      contactInfo: lines.join('\n'),
+      profile: profileNode
+    };
+  }
+
   const mod = {
     buildProfileUrl,
     fetchProfileJson,
-    parseProfile
+    parseProfile,
+    buildContactInfoUrl,
+    fetchContactInfoJson,
+    parseContactInfo
   };
 
   if (typeof module!=='undefined' && module.exports) module.exports = mod;

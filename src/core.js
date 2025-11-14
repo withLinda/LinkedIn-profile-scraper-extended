@@ -79,6 +79,24 @@
             .join(sep);
     }
 
+    // Extract memberIdentity slug from a LinkedIn profile URL, e.g.
+    // "https://www.linkedin.com/in/anoop-reddy-/" -> "anoop-reddy-"
+    function extractMemberIdentityFromProfileUrl(profileUrl) {
+        if (!profileUrl || typeof profileUrl !== 'string') return null;
+        try {
+            const url = new URL(profileUrl, 'https://www.linkedin.com');
+            const segments = url.pathname.split('/').filter(Boolean);
+            if (!segments.length) return null;
+            if (segments[0].toLowerCase() === 'in') {
+                return segments[1] || null;
+            }
+            // Fallback: last non-empty segment
+            return segments[segments.length - 1] || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
     function formatSkills(skills) {
         if (!Array.isArray(skills) || skills.length === 0) return '';
         return skills.map(s => (typeof s === 'string' ? s.trim() : '')).filter(Boolean).join(', ');
@@ -225,7 +243,7 @@
                             let attempts = 0;
                             while (attempts < 2) {
                                 try {
-                                    const { included } = await __profile__.fetchProfileJson(person.urnCode, null);
+                                    const { included } = await __profile__.fetchProfileJson(person.urnCode, csrfToken);
                                     const parsed = __profile__.parseProfile(included || []);
                                     // About
                                     if (parsed.about) person.about = parsed.about;
@@ -263,6 +281,37 @@
                                     // Non-rate-limit errors: log and continue without enrichment
                                     console.warn('Profile enrichment failed:', e);
                                     break;
+                                }
+                            }
+                        }
+
+                        // --- Enrich with contact info (email, websites, phones, etc.) using memberIdentity slug
+                        if (person.profileUrl &&
+                            __profile__ &&
+                            typeof __profile__.fetchContactInfoJson === 'function' &&
+                            typeof __profile__.parseContactInfo === 'function') {
+                            const memberIdentity = extractMemberIdentityFromProfileUrl(person.profileUrl);
+                            if (memberIdentity) {
+                                let contactAttempts = 0;
+                                while (contactAttempts < 2) {
+                                    try {
+                                        const { included: contactIncluded } =
+                                            await __profile__.fetchContactInfoJson(memberIdentity, csrfToken);
+                                        const contact =
+                                            __profile__.parseContactInfo(contactIncluded || [], { memberIdentity });
+                                        if (contact && contact.contactInfo) {
+                                            person.contactInfo = contact.contactInfo;
+                                        }
+                                        break;
+                                    } catch (e) {
+                                        if (e && e.message === 'RATE_LIMIT') {
+                                            await this.handleRateLimit();
+                                            contactAttempts++;
+                                            continue;
+                                        }
+                                        console.warn('Contact info enrichment failed:', e);
+                                        break;
+                                    }
                                 }
                             }
                         }

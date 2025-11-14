@@ -4,6 +4,8 @@
     const PERSON_COLUMNS = [
         { key: 'name', label: 'Name' },
         { key: 'profileUrl', label: 'Profile URL' },
+        // Consolidated contact block (email, phone, websites, etc.)
+        { key: 'contactInfo', label: 'Contact Info' },
         { key: 'headline', label: 'Headline' },
         { key: 'location', label: 'Location' },
         { key: 'current', label: 'Current' },
