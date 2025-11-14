@@ -170,24 +170,67 @@
 
   // ---- Heuristics for locating sections
   function pickAboutText(included){
-    // Find any reasonably long textComponent within a "card"/"topComponents" subtree
-    const texts = [];
+    // Helper: collect candidate text strings from a node into the given bucket
+    function collectTextFromNode(node, bucket, minLen){
+      const min = typeof minLen === 'number' ? minLen : 40;
+      const text =
+        get(node, 'textComponent.text.accessibilityText') ||
+        get(node, 'text.text.accessibilityText') ||
+        get(node, 'textComponent.text.text') ||
+        get(node, 'text.text');
+      if (typeof text !== 'string') return;
+      const t = text.trim();
+      // Avoid Sales Navigator highlight/upsell copy
+      if (t && t.length >= min && !PROMO_RE.test(t)) {
+        bucket.push(t);
+      }
+    }
+
+    // First try: only look inside ABOUT cards
+    const aboutCandidates = [];
+    for (const item of included){
+      if (!item || typeof item !== 'object') continue;
+      if (cardSectionOf(item) !== 'ABOUT') continue;
+
+      const bucket = [];
+      walk(item, (n)=>{
+        // Skip obvious promo/highlight content
+        if (isPromoOrHighlight(n)) return;
+        // Allow short ABOUT texts; pick longest later
+        collectTextFromNode(n, bucket, 1);
+      });
+
+      if (bucket.length){
+        // Keep the longest text from this ABOUT card
+        bucket.sort((a, b) => b.length - a.length);
+        aboutCandidates.push(bucket[0]);
+      }
+    }
+
+    // If we found any text inside ABOUT cards, use the longest one.
+    if (aboutCandidates.length){
+      aboutCandidates.sort((a, b) => b.length - a.length);
+      return aboutCandidates[0] || null;
+    }
+
+    // Fallback: preserve the old heuristic across all included items
+    const fallbackTexts = [];
     for (const item of included){
       if (!item || typeof item !== 'object') continue;
       const bucket = [];
       walk(item, (n)=>{
-        const text = get(n, 'textComponent.text.accessibilityText') || get(n, 'text.text.accessibilityText');
-        if (typeof text === 'string') {
-          const t = text.trim();
-          // Avoid Sales Navigator highlight/upsell copy
-          if (t && t.length >= 40 && !PROMO_RE.test(t)) bucket.push(t);
-        }
+        if (isPromoOrHighlight(n)) return;
+        collectTextFromNode(n, bucket, 40);
       });
-      if (bucket.length) texts.push(bucket.sort((a,b)=>b.length-a.length)[0]);
+      if (bucket.length){
+        bucket.sort((a, b) => b.length - a.length);
+        fallbackTexts.push(bucket[0]);
+      }
     }
-    if (!texts.length) return null;
-    const about = texts.sort((a,b)=>b.length-a.length)[0];
-    return about || null;
+
+    if (!fallbackTexts.length) return null;
+    fallbackTexts.sort((a, b) => b.length - a.length);
+    return fallbackTexts[0] || null;
   }
 
   function collectFixedLists(included){
