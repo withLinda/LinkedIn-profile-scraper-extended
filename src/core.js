@@ -164,6 +164,7 @@
             this.retryCount = 0;
             this.maxRetries = 3;
             this.pageSize = 10; // keep in sync with GraphQL count
+            this.companyWebsiteCache = new Map();
         }
         
         async delay(min = 400, max = 1100) {
@@ -184,6 +185,38 @@
             }
             
             await this.delay(1200, 1500);
+        }
+
+        async getCompanyWebsite(companyId, csrfToken) {
+            if (!companyId || !__profile__ || typeof __profile__.fetchCompanyWebsite !== 'function') return null;
+
+            const cache = this.companyWebsiteCache;
+            if (cache && cache.has(companyId)) {
+                return cache.get(companyId);
+            }
+
+            let attempts = 0;
+            let website = null;
+
+            while (attempts < 2) {
+                try {
+                    website = await __profile__.fetchCompanyWebsite(companyId, csrfToken);
+                    break;
+                } catch (e) {
+                    if (e && e.message === 'RATE_LIMIT') {
+                        await this.handleRateLimit();
+                        attempts++;
+                        continue;
+                    }
+                    console.warn('Company website enrichment failed:', e);
+                    break;
+                }
+            }
+
+            if (cache) {
+                cache.set(companyId, website || null);
+            }
+            return website || null;
         }
         
         async run() {
@@ -249,9 +282,30 @@
                                     if (parsed.about) person.about = parsed.about;
                                     // Experience (flatten first 3)
                                     const exp = Array.isArray(parsed.experiences) ? parsed.experiences.slice(0,3) : [];
+                                    const expWithWebsites = [];
+                                    for (let i = 0; i < 3; i++) {
+                                        const e = exp[i] || null;
+                                        if (e && e.companyId) {
+                                            const website = await this.getCompanyWebsite(e.companyId, csrfToken);
+                                            if (website) {
+                                                expWithWebsites[i] = Object.assign({}, e, { companyWebsite: website });
+                                                continue;
+                                            }
+                                        }
+                                        expWithWebsites[i] = e || {};
+                                    }
                                     for (let i=0; i<3; i++){
-                                        const e = exp[i] || {};
-                                        person[`exp${i+1}_company`] = e.companyName || '';
+                                        const e = expWithWebsites[i] || {};
+                                        const website = e.companyWebsite || '';
+                                        let companyDisplay = e.companyName || '';
+                                        if (website) {
+                                            companyDisplay = companyDisplay
+                                                ? (companyDisplay + ' (' + website + ')')
+                                                : website;
+                                        } else if (!website && e.companyName && e.companyId) {
+                                            companyDisplay = e.companyName + ' (' + e.companyId + ')';
+                                        }
+                                        person[`exp${i+1}_company`] = companyDisplay;
                                         person[`exp${i+1}_position`] = e.positionTitle || '';
                                         person[`exp${i+1}_duration`] = e.duration || '';
                                         person[`exp${i+1}_position_duration`] = e.positionDuration || '';

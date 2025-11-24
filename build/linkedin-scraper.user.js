@@ -596,6 +596,49 @@
         return { data, included };
       }
     
+      // -- URL builder for company GraphQL (to resolve company website)
+      function buildCompanyUrl(companyId){
+        if (!companyId) return null;
+        const id = String(companyId).trim();
+        if (!id) return null;
+        const urn = `urn:li:fsd_company:${id}`;
+        const encodedUrn = encodeURIComponent(urn);
+        const variables = `variables=(companyUrns:List(${encodedUrn}))`;
+        const queryId  = 'queryId=voyagerOrganizationDashCompanies.32a7cdaea60de8f9ce50df019654c45d';
+        return `https://www.linkedin.com/voyager/api/graphql?includeWebMetadata=true&${variables}&${queryId}`;
+      }
+    
+      async function fetchCompanyJson(companyId, csrfToken){
+        const url = buildCompanyUrl(companyId);
+        if (!url) throw new Error('COMPANY_URL');
+        const headers = {
+          'x-restli-protocol-version': '2.0.0',
+          'accept': 'application/vnd.linkedin.normalized+json+2.1'
+        };
+        const auth = getAuth();
+        const token = csrfToken || (auth && typeof auth.getCsrfToken==='function' ? auth.getCsrfToken() : null);
+        if (token) headers['csrf-token'] = token;
+    
+        const res = await fetch(url, { method:'GET', headers, credentials:'include' });
+        if (res.status === 429) throw new Error('RATE_LIMIT');
+        if (!res.ok) {
+          const body = await res.text().catch(()=> '');
+          console.error('[Company] HTTP', res.status, body.slice(0,500));
+          throw new Error(`HTTP ${res.status}`);
+        }
+        let data;
+        try { data = await res.json(); }
+        catch (e) {
+          const clone = res.clone();
+          const body = await clone.text().catch(()=> '');
+          console.error('[Company] Non-JSON body:', body.slice(0,500));
+          throw e;
+        }
+        const rawIncluded = data?.included ?? data?.data?.included ?? [];
+        const included = Array.isArray(rawIncluded) ? rawIncluded : [];
+        return { data, included };
+      }
+    
       // -- URL builder and fetcher for "contact info" profile GraphQL
       function buildContactInfoUrl(memberIdentity){
         if (!memberIdentity) return null;
@@ -862,6 +905,24 @@
         return m ? m[1] : null;
       }
     
+      function extractCompanyWebsite(included){
+        const list = Array.isArray(included) ? included : [];
+        for (const item of list){
+          const cta = get(item, 'callToAction');
+          if (!cta || typeof cta !== 'object') continue;
+          const type = safeText(cta.type).toUpperCase();
+          if (type !== 'VIEW_WEBSITE' && type !== 'LEARN_MORE' && type !== 'VIEW_CONTACT_INFO') continue;
+          const url = safeText(cta.url);
+          if (url) return url;
+        }
+        return null;
+      }
+    
+      async function fetchCompanyWebsite(companyId, csrfToken){
+        const { included } = await fetchCompanyJson(companyId, csrfToken);
+        return extractCompanyWebsite(included);
+      }
+    
       function parseExperiencesFromList(list){
         const out = [];
         for (const node of list){
@@ -871,7 +932,6 @@
                            t(node, 'components.entityComponent.subtitle.text') || null;
           // Company is usually in subtitle like "Hebe Beauty Indonesia · Full-time"
           let companyName = subtitle ? subtitle.split('·')[0].trim() : null;
-          if (companyName && companyId) companyName = companyName + ' (' + companyId + ')';
           const duration = t(node, 'components.entityComponent.caption.accessibilityText') || null;
           const location = t(node, 'components.entityComponent.metadata.text') ||
                            t(node, 'components.entityComponent.caption.text') || null;
@@ -895,7 +955,7 @@
             });
     
             if (firstNonEmpty(companyName, positionTitle, duration, positionDuration, location, jobDescription)){
-              out.push({ companyName, duration, location, positionTitle, positionDuration, jobDescription, roleSkills });
+              out.push({ companyName, companyId, duration, location, positionTitle, positionDuration, jobDescription, roleSkills });
               pushed = true;
             }
           }
@@ -913,7 +973,7 @@
               if (s) roleSkills.push.apply(roleSkills, extractSkillsFromInsightText(s));
             });
             if (firstNonEmpty(companyName, positionTitle, duration, location, jobDescription)){
-              out.push({ companyName, duration, location, positionTitle, positionDuration: null, jobDescription, roleSkills });
+              out.push({ companyName, companyId, duration, location, positionTitle, positionDuration: null, jobDescription, roleSkills });
             }
           }
         }
@@ -1200,7 +1260,10 @@
         parseProfile,
         buildContactInfoUrl,
         fetchContactInfoJson,
-        parseContactInfo
+        parseContactInfo,
+        buildCompanyUrl,
+        fetchCompanyJson,
+        fetchCompanyWebsite
       };
     
       if (typeof module!=='undefined' && module.exports) module.exports = mod;
@@ -1456,6 +1519,7 @@
                 this.retryCount = 0;
                 this.maxRetries = 3;
                 this.pageSize = 10; // keep in sync with GraphQL count
+                this.companyWebsiteCache = new Map();
             }
             
             async delay(min = 400, max = 1100) {
@@ -1476,6 +1540,38 @@
                 }
                 
                 await this.delay(1200, 1500);
+            }
+    
+            async getCompanyWebsite(companyId, csrfToken) {
+                if (!companyId || !__profile__ || typeof __profile__.fetchCompanyWebsite !== 'function') return null;
+    
+                const cache = this.companyWebsiteCache;
+                if (cache && cache.has(companyId)) {
+                    return cache.get(companyId);
+                }
+    
+                let attempts = 0;
+                let website = null;
+    
+                while (attempts < 2) {
+                    try {
+                        website = await __profile__.fetchCompanyWebsite(companyId, csrfToken);
+                        break;
+                    } catch (e) {
+                        if (e && e.message === 'RATE_LIMIT') {
+                            await this.handleRateLimit();
+                            attempts++;
+                            continue;
+                        }
+                        console.warn('Company website enrichment failed:', e);
+                        break;
+                    }
+                }
+    
+                if (cache) {
+                    cache.set(companyId, website || null);
+                }
+                return website || null;
             }
             
             async run() {
@@ -1541,9 +1637,30 @@
                                         if (parsed.about) person.about = parsed.about;
                                         // Experience (flatten first 3)
                                         const exp = Array.isArray(parsed.experiences) ? parsed.experiences.slice(0,3) : [];
+                                        const expWithWebsites = [];
+                                        for (let i = 0; i < 3; i++) {
+                                            const e = exp[i] || null;
+                                            if (e && e.companyId) {
+                                                const website = await this.getCompanyWebsite(e.companyId, csrfToken);
+                                                if (website) {
+                                                    expWithWebsites[i] = Object.assign({}, e, { companyWebsite: website });
+                                                    continue;
+                                                }
+                                            }
+                                            expWithWebsites[i] = e || {};
+                                        }
                                         for (let i=0; i<3; i++){
-                                            const e = exp[i] || {};
-                                            person[`exp${i+1}_company`] = e.companyName || '';
+                                            const e = expWithWebsites[i] || {};
+                                            const website = e.companyWebsite || '';
+                                            let companyDisplay = e.companyName || '';
+                                            if (website) {
+                                                companyDisplay = companyDisplay
+                                                    ? (companyDisplay + ' (' + website + ')')
+                                                    : website;
+                                            } else if (!website && e.companyName && e.companyId) {
+                                                companyDisplay = e.companyName + ' (' + e.companyId + ')';
+                                            }
+                                            person[`exp${i+1}_company`] = companyDisplay;
                                             person[`exp${i+1}_position`] = e.positionTitle || '';
                                             person[`exp${i+1}_duration`] = e.duration || '';
                                             person[`exp${i+1}_position_duration`] = e.positionDuration || '';
