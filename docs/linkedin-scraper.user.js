@@ -857,14 +857,21 @@
         return parts;
       }
     
+      function extractCompanyIdFromUrl(url){
+        const m = /\/company\/(\d+)\//.exec(String(url) || '');
+        return m ? m[1] : null;
+      }
+    
       function parseExperiencesFromList(list){
         const out = [];
         for (const node of list){
           const base = get(node, 'components.entityComponent') || {};
+          const companyId = extractCompanyIdFromUrl(base.textActionTarget || '');
           const subtitle = t(node, 'components.entityComponent.subtitle.accessibilityText') ||
                            t(node, 'components.entityComponent.subtitle.text') || null;
           // Company is usually in subtitle like "Hebe Beauty Indonesia · Full-time"
-          const companyName = subtitle ? subtitle.split('·')[0].trim() : null;
+          let companyName = subtitle ? subtitle.split('·')[0].trim() : null;
+          if (companyName && companyId) companyName = companyName + ' (' + companyId + ')';
           const duration = t(node, 'components.entityComponent.caption.accessibilityText') || null;
           const location = t(node, 'components.entityComponent.metadata.text') ||
                            t(node, 'components.entityComponent.caption.text') || null;
